@@ -1,2 +1,2 @@
 api_key:7CKGY5COYII98PRI
-stocks:nvda,ko,amzn,amd,nflx
+stocks:spy,avgo,mu,lrcx,qcom,nvda,amd,intc,ko,amzn,aapl,msft,rtn,ba,psx,fb,mgm,soxx,vfh

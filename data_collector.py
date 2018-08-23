@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from alpha_vantage.timeseries import TimeSeries
 import collections
 import csv
+import time
 
 import logger
 
@@ -58,8 +59,10 @@ class Collector():
 		    #rename columns so it isnt ridiculous
 		    data = self.rename_cols(data)
 		    self.storage[ticker] = data
-		except:
-		    self.log.error('could not fetch data for {}'.format(ticker))
+		except Exception as e:
+		    self.log.error('could not fetch data for {}\n{}'.format(ticker, e))
+	    #make the api call level go down
+	        time.sleep(5)
 	    self.log.info('collector fetched data for {} symbols'.format(len(self.storage)))
 	return 0
 
@@ -115,7 +118,7 @@ if __name__ == '__main__':
     print collector.config
     #print collector.key
     print collector.symbols
-    collector.get_daily()
+    collector.get_daily(sz='full')
     #print collector.storage['nvda']
-    collector.save_storage()
+    collector.save_storage(postfix='5953d')
 
