@@ -1,0 +1,2 @@
+api_key:7CKGY5COYII98PRI
+stocks:nvda,ko,amzn,amd,nflx
