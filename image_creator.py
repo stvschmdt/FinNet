@@ -8,28 +8,28 @@ from matplotlib.finance import candlestick_ohlc
 
 #class to read in csv from store plus operations
 class ImageCreator():
-    def __init__(self, filename, n=30):
+    def __init__(self, filename, n=30, m = 2):
+        self.percent_label_days = m
 	self.filename = filename
 	self.ndays = n
 	self.log = logger.Logging()
-	#print 'running for days:', n
 	self.log.info('running for days: {}'.format(n))
 	self.data = self.load_ohlc_csv()
 
     def load_ohlc_csv(self):
 	try:
 	    data = pd.read_csv(self.filename)
+            #print data.columns.values
 	    return data
 	except:
 	    self.log.error('could not read file {}'.format(self.filename))
 
-    def n_day(self,n, df=None):
-        ### Tie into rolling window function
+    def n_day(self,window_start,window_stop, df=None):
         #return either n day window from self.data or pass in dataframe
 	if df is None:
-	    return self.data.iloc[:n]
+	    return self.data.iloc[window_start:window_stop]
 	else:
-	    return df.iloc[:n]
+	    return df.iloc[window_start:window_stop]
 
     def convert_dataframe_to_np_array(self,df=None):
         ### returns values of dataframe for numpy array
@@ -42,30 +42,37 @@ class ImageCreator():
     def rolling_window(self, df=None):
         ### Rolling window is a generator function that only returns one window at a time
         ### Passes window into create_image_from_np_array function
-        ### Window issnapshot of ndays moving forward
-        ### Tie this in to nday function
+        ### Window is snapshot of ndays moving forward
         if df is None:
             num_iter = self.get_num_windows(self.ndays)
-            for i in range(num_iter):
-                yield self.data.iloc[i:self.ndays+i]
+            if num_iter <= 0:
+	        self.log.error('price on label day {}'.format(self.ndays+self.percent_label_days))
+                self.log.error('is past last day in data {}'.format(len(self.load_ohlc_csv()))) 
+            else:
+                for i in range(num_iter):
+                    yield self.n_day(i,self.ndays+i)
         else:
             num_iter = self.get_num_windows(self.ndays,df=df)
-            for i in range(num_iter):
-                yield df.iloc[i:self.ndays+i]
-    def change_date(self,arr):
-        ### Changes date string into index for ndays
+            if num_iter <= 0:
+	        self.log.error('price on label day'.format(self.ndays+self.percent_label_days-1))
+                self.log.error('is past last day in data'.format(len(load_ohlc_csv(self.filename))+1)) 
+            else:
+                for i in range(num_iter):
+                    yield self.n_day(i,self.ndays+i)
+    def change_date(self,arr,count):
+        ### Changes date string into index, adds count so that indices will be (for n = 30):
+        ### 0-29 for window 0; 1-30 for window 1; 2-31 for window 2; etc
         for j in range(len(arr)):
-            arr[j][0] = j
+            arr[j][0] = j - 1 + count
         return arr
 
-    def create_image_from_np_array(self,arr):
+    def create_image_from_np_array(self,arr,savepath):
         #create candlestick chart with matplotlib
         fig = plt.figure()
         ax1 = plt.gca()
         #x limits are the low and high indices, day 0 to day nday for window 1
         # y limits are the min and max of the ohlc data
         plt.xlim(arr[0][0],arr[-1][0])
-        print arr[0][-1]
         plt.ylim(np.min(arr[:,1:5]),np.max(arr[:,1:5]))
         #turn off axes around the plot
         plt.axis('off')
@@ -73,7 +80,7 @@ class ImageCreator():
         candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
         ### Saving image here because I'm not sure how to pass to save_image function
         ### Maybe pass candlestick object?
-        plt.savefig('./temp_im.png')
+        plt.savefig(savepath+'.png')
 #       ax1.set_facecolor('w')
         #plt.Axes(fig,[0,0,1,1])
     
@@ -81,14 +88,17 @@ class ImageCreator():
 	return 0
 
     def get_num_windows(self,n,df=None):
+        ### When appending label, cannot put label for windows where index is out of range
+        ###if n = 90, cannot append 2 days out label for window 9-98 because index 100 is
+        ### out of range for data frame, so we subtract self.percent_label_days and add 1 to number of windows
         if df is None:
-	    return len(self.data) - n
+	    return len(self.data) - n - self.percent_label_days + 1
         else:
-            return len(df) - n
+            return len(df) - n - self.percent_label_days + 1
 
     def read_image_to_np_array(self,im_filename):
         ### Reads saved image and converts to a numpy array
-        return np.asarray(Image.open(im_filename))
+        return np.asarray(Image.open(im_filename+'.png'))
 
     def delete_alpha(self,arr):
         ### Remove opacity channel from image array
@@ -119,35 +129,54 @@ class ImageCreator():
         '''
     def flatten_image(self,arr):
         ### Flatten image to vector for easier saving and appending of label
-        return 0
-
-    def append_label(self,arr):
-        ### Calculate percentage change +m days after window and append to image
-        return 0
+	### 'C' parameter flattens C style, along rows
+	### mapped as [i,j,k] -> [j + rowlen*i + k*rowlen*collen]
+	arr1 = arr.flatten('C')
+        return arr1
+    def get_labels(self,arr,img,df = None):
+        ### Calculate percentage change +m days after window
+        ### Note that the entire data frame must be passed to df rather than a windowed data frame
+        ### This is because the windowed frame doesn't contain the future price
+        ### Will need shape in order to recreate image array
+        if df is None:
+            dataline = self.data.iloc[arr[-1][0] + self.percent_label_days]
+            percent_diff = (np.max(dataline[1:4]) - self.data.iloc[-1][4])/np.max(dataline[1:4])
+            return [img.shape[0],img.shape[1],img.shape[2],int(100*percent_diff)]
+        else:
+            dataline = df.iloc[arr[-1][0] + self.percent_label_days]
+            percent_diff = (np.max(dataline[1:4]) - df.iloc[-1][4])/np.max(dataline[1:4])
+            return [img.shape[0],img.shape[1],img.shape[2],int(100*percent_diff)]
+    def append_labels(self,arr,labels):
+        ### Add label and shape to the end of flattened image array
+        arr = np.append(arr,labels)
+        return arr
 
     #do all the things tested in the 'if' statement below
     def driver(self):
         ### temporary path for the images to be saved at. There's probably a better way to do this
-        temp_path = './temp_im.png'
+        temp_path = './temp_im'
         generator = ic.rolling_window()
         count = 0
-        #generator function only returns one window at a time, potentially speeding image making
+        ### generator function only returns one window at a time, potentially speeding image making
         for i in generator:
             self.log.info("rolling window num:{}".format(count))
             count += 1
             arr = self.convert_dataframe_to_np_array(df=i)
-            arr = self.change_date(arr)
-            self.log.info("saving image...")
-            self.create_image_from_np_array(arr)
+            arr = self.change_date(arr,count)
+            self.log.info("creating/saving image...")
+            self.create_image_from_np_array(arr,temp_path)
             self.log.info("reading image...")
-            arr = self.read_image_to_np_array(temp_path)
+            img_arr = self.read_image_to_np_array(temp_path)
             
-            arr = self.delete_alpha(arr)
+            img_arr = self.delete_alpha(img_arr)
+            labels = self.get_labels(arr,img_arr)
+            img_arr = self.flatten_image(img_arr)
+            img_arr = self.append_labels(img_arr,labels)
             self.log.info("saving array...")
-	    np.save('./imgs_as_arrays/img_'+str(self.ndays)+'_days_window_'+str(count),arr)
-            #Check image after deleting alpha array
-            img = Image.fromarray(arr,'RGB')
-            img.show()
+	    np.save('./imgs_as_arrays/img_'+str(self.ndays)+'_days_window_'+str(count),img_arr)
+            ###Check image after deleting alpha array (need to adjust for flattened image)
+            #img = Image.fromarray(arr,'RGB')
+            #img.show()
 
 
 
@@ -156,10 +185,10 @@ if __name__ == '__main__':
     days = [30,60,90]
 
     if check_driver == 1:
-        ic = ImageCreator('store/goog_100d.csv', 90)
+        ic = ImageCreator('store/goog_100d.csv', 90,m=2)
         ic.driver()
     else:
-        ic = ImageCreator('./store/goog_100d.csv')
+        ic = ImageCreator('./store/goog_100d.csv',n = 90)
         # Default is 30 day window
         generator = ic.rolling_window()
         count = 0
@@ -172,7 +201,7 @@ if __name__ == '__main__':
 
             #Replace date strings with indices
             for i in range(len(arr)):
-                arr[i][0] = i
+                arr[i][0] = i - 1 + count
             #create candlestick chart with matplotlib, hexadecimals create green and red candlesticks
             candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
 #           ax1.set_facecolor('w')
@@ -184,9 +213,16 @@ if __name__ == '__main__':
             # y limits are the min and max of the ohlc data
             plt.ylim(np.min(arr[:,1:5]),np.max(arr[:,1:5]))
             plt.savefig('./test1.png')
-            plt.show()
+            plt.close()
+            #plt.show()
             img = np.asarray(Image.open('./test1.png'))
+            ### Test mapping from 1D array back to 3D array to recreate image array
+            label = ic.get_labels(arr,img)
+            
+            img1 = ic.flatten_image(img)
+            img1 = ic.append_labels(img1,label)
+            
+
     
 
-    #do step 1, step 2, step 3
     
