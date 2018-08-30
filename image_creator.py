@@ -15,14 +15,50 @@ class ImageCreator():
 	self.log = logger.Logging()
 	self.log.info('running for days: {}'.format(n))
 	self.data = self.load_ohlc_csv()
+        #self.data = self.reorder_data_columns(self.data)
+        ### Initialize dictionary to order columns
+        self.coldict = {
+                'date':0,
+                'Date':0,
+                'open':1,
+                'Open':1,
+                'high':2,
+                'High':2,
+                'low':3,
+                'Low':3,
+                'adj_close':4,
+                'Adj_Close':4,
+                'Adjusted_close':4,
+                'Adjusted_Close':4
+                }
 
     def load_ohlc_csv(self):
 	try:
 	    data = pd.read_csv(self.filename)
-            #print data.columns.values
 	    return data
 	except:
 	    self.log.error('could not read file {}'.format(self.filename))
+
+    def reorder_data_columns(self,data):
+        try:
+            collist = data.columns.values
+            ### Create empty array to put integer values to sort by in
+            sorter_array = []
+            for col in collist:
+                if col in self.coldict:
+                    ### Get integer values from dictionary lookup
+                    sorter_array.append(self.coldict[col])
+                else:
+                    ### Drop columns that do not match dictionary
+                    ### May drop needed columns; could 
+                    ### add a way to add columns during runtimethat may be needed
+                    data = data.drop(columns = col)
+            collist = data.columns.values
+            new_collist = [x for _,x in sorted(zip(sorter_array,collist))]
+            data = data[new_collist]
+            return data
+        except:
+            self.log.error('could not reorder data columns')
 
     def n_day(self,window_start,window_stop, df=None):
         #return either n day window from self.data or pass in dataframe
@@ -181,13 +217,14 @@ class ImageCreator():
 
 
 if __name__ == '__main__':
-    check_driver = 1
+    check_driver = 0
     days = [30,60,90]
 
     if check_driver == 1:
         ic = ImageCreator('store/goog_100d.csv', 90,m=2)
         ic.driver()
     else:
+        '''
         ic = ImageCreator('./store/goog_100d.csv',n = 90)
         # Default is 30 day window
         generator = ic.rolling_window()
@@ -221,8 +258,12 @@ if __name__ == '__main__':
             
             img1 = ic.flatten_image(img)
             img1 = ic.append_labels(img1,label)
-            
-
+           '''
+    
+        ### Test column reordering
+        ic = ImageCreator('./store/lrcx_5953d.csv',n = 90)
+        data = ic.reorder_data_columns(ic.data)
+        print data.columns.values
     
 
-    
+        
