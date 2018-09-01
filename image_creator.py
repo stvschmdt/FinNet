@@ -18,6 +18,7 @@ class ImageCreator():
 	self.log = logger.Logging()
 	self.log.info('running for days: {}'.format(n))
 	self.data = self.load_ohlc_csv()
+	self.ohlc = self.data[['open', 'high', 'low', 'adj_close']]
         #self.data = self.reorder_data_columns(self.data)
         ### Initialize dictionary to order columns
         self.coldict = {
@@ -66,14 +67,14 @@ class ImageCreator():
     def n_day(self,window_start,window_stop, df=None):
         #return either n day window from self.data or pass in dataframe
 	if df is None:
-	    return self.data.iloc[window_start:window_stop]
+	    return self.ohlc.iloc[window_start:window_stop]
 	else:
 	    return df.iloc[window_start:window_stop]
 
     def convert_dataframe_to_np_array(self,df=None):
         ### returns values of dataframe for numpy array
         if df is None:
-            return self.data.values
+            return self.ohlc.values
         else:
             return df.values
         
@@ -131,7 +132,7 @@ class ImageCreator():
         ###if n = 90, cannot append 2 days out label for window 9-98 because index 100 is
         ### out of range for data frame, so we subtract self.percent_label_days and add 1 to number of windows
         if df is None:
-	    return len(self.data) - n - self.percent_label_days + 1
+	    return len(self.ohlc) - n - self.percent_label_days + 1
         else:
             return len(df) - n - self.percent_label_days + 1
 
@@ -178,8 +179,8 @@ class ImageCreator():
         ### This is because the windowed frame doesn't contain the future price
         ### Will need shape in order to recreate image array
         if df is None:
-            dataline = self.data.iloc[arr[-1][0] + self.percent_label_days]
-            percent_diff = (np.max(dataline[1:4]) - self.data.iloc[-1][4])/np.max(dataline[1:4])
+            dataline = self.ohlc.iloc[arr[-1][0] + self.percent_label_days]
+            percent_diff = (np.max(dataline[1:4]) - self.ohlc.iloc[-1][4])/np.max(dataline[1:4])
             return [img.shape[0],img.shape[1],img.shape[2],int(100*percent_diff)]
         else:
             dataline = df.iloc[arr[-1][0] + self.percent_label_days]
@@ -266,7 +267,7 @@ if __name__ == '__main__':
         ### Test column reordering
         ic = ImageCreator('./store/lrcx_5953d.csv',n = 90)
         data = ic.reorder_data_columns(ic.data)
-        print data.columns.values
+        print ohlc.columns.values
     
 
         
