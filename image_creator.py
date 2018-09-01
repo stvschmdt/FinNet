@@ -18,7 +18,7 @@ class ImageCreator():
 	self.log = logger.Logging()
 	self.log.info('running for days: {}'.format(n))
 	self.data = self.load_ohlc_csv()
-	self.ohlc = self.data[['open', 'high', 'low', 'adj_close']]
+	self.ohlc = self.data[['date', 'open', 'high', 'low', 'adj_close']]
         #self.data = self.reorder_data_columns(self.data)
         ### Initialize dictionary to order columns
         self.coldict = {
@@ -106,13 +106,15 @@ class ImageCreator():
             arr[j][0] = j - 1 + count
         return arr
 
-    def create_image_from_np_array(self,arr,savepath):
+    def create_image_from_np_array(self,arr,savepath, n=None):
+        if n == None:
+            n = self.ndays
         #create candlestick chart with matplotlib
         fig = plt.figure()
         ax1 = plt.gca()
         #x limits are the low and high indices, day 0 to day nday for window 1
         # y limits are the min and max of the ohlc data
-        plt.xlim(arr[0][0],arr[-1][0])
+        plt.xlim((0,n))
         plt.ylim(np.min(arr[:,1:5]),np.max(arr[:,1:5]))
         #turn off axes around the plot
         plt.axis('off')
@@ -221,15 +223,14 @@ class ImageCreator():
 
 
 if __name__ == '__main__':
-    check_driver = 0
+    check_driver = 1
     days = [30,60,90]
 
     if check_driver == 1:
-        ic = ImageCreator('store/goog_100d.csv', 90,m=2)
+        ic = ImageCreator('store/nvda_100d.csv', 90,m=2)
         ic.driver()
     else:
-        '''
-        ic = ImageCreator('./store/goog_100d.csv',n = 90)
+        ic = ImageCreator('./store/nvda_100d.csv',n = 90)
         # Default is 30 day window
         generator = ic.rolling_window()
         count = 0
@@ -262,12 +263,11 @@ if __name__ == '__main__':
             
             img1 = ic.flatten_image(img)
             img1 = ic.append_labels(img1,label)
-           '''
-    
+        ''' 
         ### Test column reordering
         ic = ImageCreator('./store/lrcx_5953d.csv',n = 90)
         data = ic.reorder_data_columns(ic.data)
-        print ohlc.columns.values
-    
+        #print ohlc.columns.values
+        '''
 
         
