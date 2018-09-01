@@ -6,6 +6,9 @@ import logger
 from PIL import Image
 from matplotlib.finance import candlestick_ohlc
 
+
+#format of API renamed from data_collector.py
+#cols = ['low', 'open', 'high', 'close', 'volume', 'adj_close', 'split_coeff', 'dividend']
 #class to read in csv from store plus operations
 class ImageCreator():
     def __init__(self, filename, n=30, m = 2):
