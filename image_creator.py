@@ -5,11 +5,13 @@ import matplotlib.finance as fin
 import logger
 from PIL import Image
 from matplotlib.finance import candlestick_ohlc
+import os
 
 
 #format of API renamed from data_collector.py
 #cols = ['low', 'open', 'high', 'close', 'volume', 'adj_close', 'split_coeff', 'dividend']
 #class to read in csv from store plus operations
+### Add symbol directory to imags_as_arrays, i.e. /imgs_as_arrays/amzn_5953d/30d, or 90d
 class ImageCreator():
     def __init__(self, filename, n=30, m = 2):
         self.percent_label_days = m
@@ -35,7 +37,15 @@ class ImageCreator():
                 'Adjusted_close':4,
                 'Adjusted_Close':4
                 }
-
+    '''
+    def check_dir(self,filename):
+        ### Check symbol directory and data directory
+        ### if symbol not in directory, create new directory with symbol
+        ### Check symbol directory for nday windows
+        ### if no nday windows directory, create new with n + 'd'
+        for i in os.listdir('./imgs_as_arrays'):
+            if i
+    '''
     def load_ohlc_csv(self):
 	try:
 	    data = pd.read_csv(self.filename)
