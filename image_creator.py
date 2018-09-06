@@ -20,32 +20,38 @@ class ImageCreator():
 	self.log = logger.Logging()
 	self.log.info('running for days: {}'.format(n))
 	self.data = self.load_ohlc_csv()
-	self.ohlc = self.data[['date', 'open', 'high', 'low', 'adj_close']]
-        #self.data = self.reorder_data_columns(self.data)
-        ### Initialize dictionary to order columns
-        self.coldict = {
-                'date':0,
-                'Date':0,
-                'open':1,
-                'Open':1,
-                'high':2,
-                'High':2,
-                'low':3,
-                'Low':3,
-                'adj_close':4,
-                'Adj_Close':4,
-                'Adjusted_close':4,
-                'Adjusted_Close':4
-                }
-    '''
-    def check_dir(self,filename):
+        self.ohlc = self.reorder_data_columns()
+        self.write_dir = self.check_dir()
+
+    def check_dir(self,filename=None,n=None):
         ### Check symbol directory and data directory
         ### if symbol not in directory, create new directory with symbol
         ### Check symbol directory for nday windows
         ### if no nday windows directory, create new with n + 'd'
-        for i in os.listdir('./imgs_as_arrays'):
-            if i
-    '''
+        if filename == None:
+            filename = self.filename
+        if n == None:
+            n = self.ndays
+        symbol,_ = filename.split(".")
+        _,symbol = symbol.split("/")
+        n = str(n)+'d'
+        ### Switch os.system calls to subprocess calls 
+        if symbol in os.listdir('./imgs_as_arrays'):
+            if n in os.listdir('./imgs_as_arrays/'+symbol):
+                write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'
+            else:
+                self.log.info('creating directory ./imgs_as_arrays/'+symbol+'/{}'.format(n))
+                os.system('mkdir ./imgs_as_arrays/'+symbol+'/'+n)
+                write_dir = './imgs_as_arrays'+symbol+'/'+n+'/'
+        else:
+            self.log.info('creating directories ./imgs_as_arrays/{}'.format(symbol))
+            self.log.info('and ./imgs_as_arrays/'+symbol+'/{}'.format(n))
+            os.system('mkdir ./imgs_as_arrays/'+symbol)
+            os.system('mkdir ./imgs_as_arrays/'+symbol+'/'+n)
+            write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'
+        return write_dir
+                
+
     def load_ohlc_csv(self):
 	try:
 	    data = pd.read_csv(self.filename)
@@ -53,24 +59,12 @@ class ImageCreator():
 	except:
 	    self.log.error('could not read file {}'.format(self.filename))
 
-    def reorder_data_columns(self,data):
+    def reorder_data_columns(self,data = None):
         try:
-            collist = data.columns.values
-            ### Create empty array to put integer values to sort by in
-            sorter_array = []
-            for col in collist:
-                if col in self.coldict:
-                    ### Get integer values from dictionary lookup
-                    sorter_array.append(self.coldict[col])
-                else:
-                    ### Drop columns that do not match dictionary
-                    ### May drop needed columns; could 
-                    ### add a way to add columns during runtimethat may be needed
-                    data = data.drop(columns = col)
-            collist = data.columns.values
-            new_collist = [x for _,x in sorted(zip(sorter_array,collist))]
-            data = data[new_collist]
-            return data
+            if data is None:
+                data = self.data
+            ohlc = data[['date','open','high','low','adj_close']]
+            return ohlc
         except:
             self.log.error('could not reorder data columns')
 
@@ -198,10 +192,21 @@ class ImageCreator():
             dataline = df.iloc[arr[-1][0] + self.percent_label_days]
             percent_diff = (np.max(dataline[1:4]) - df.iloc[-1][4])/np.max(dataline[1:4])
             return [img.shape[0],img.shape[1],img.shape[2],int(100*percent_diff)]
+
     def append_labels(self,arr,labels):
         ### Add label and shape to the end of flattened image array
         arr = np.append(arr,labels)
         return arr
+
+    def image_test(self,write_file):
+        ### Recreate image from numpy file
+        arr = np.load(write_file)
+        ### Recreate array
+        percent_label = arr[-1]
+        shape0 = arr[-2]
+        shape1 = arr[-3]
+        shape2 = arr[-4]
+        print shape0, shape1, shape2
 
     #do all the things tested in the 'if' statement below
     def driver(self):
@@ -222,10 +227,10 @@ class ImageCreator():
             
             img_arr = self.delete_alpha(img_arr)
             labels = self.get_labels(arr,img_arr)
-            img_arr = self.flatten_image(img_arr)
+            #img_arr = self.flatten_image(img_arr)
             img_arr = self.append_labels(img_arr,labels)
             self.log.info("saving array...")
-	    np.save('./imgs_as_arrays/img_'+str(self.ndays)+'_days_window_'+str(count),img_arr)
+            np.save(self.write_dir + 'window'+str(count)+'_label'+str(self.percent_label_days)+'d')
             ###Check image after deleting alpha array (need to adjust for flattened image)
             #img = Image.fromarray(arr,'RGB')
             #img.show()
