@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.finance as fin
+import matplotlib.mpl_finance as fin
 import logger
 from PIL import Image
 from matplotlib.finance import candlestick_ohlc
@@ -198,7 +198,7 @@ class ImageCreator():
         arr = np.append(arr,labels)
         return arr
 
-    def image_test(self,write_file):
+    def recreate_image(self,write_file):
         ### Recreate image from numpy file
         arr = np.load(write_file)
         ### Recreate array
@@ -230,7 +230,7 @@ class ImageCreator():
             #img_arr = self.flatten_image(img_arr)
             img_arr = self.append_labels(img_arr,labels)
             self.log.info("saving array...")
-            np.save(self.write_dir + 'window'+str(count)+'_label'+str(self.percent_label_days)+'d')
+            np.save(self.write_dir + 'window'+str(count)+'_label'+str(self.percent_label_days)+'d',img_arr)
             ###Check image after deleting alpha array (need to adjust for flattened image)
             #img = Image.fromarray(arr,'RGB')
             #img.show()
@@ -238,7 +238,7 @@ class ImageCreator():
 
 
 if __name__ == '__main__':
-    check_driver = 1
+    check_driver = 0
     days = [30,60,90]
 
     if check_driver == 1:
@@ -278,11 +278,8 @@ if __name__ == '__main__':
             
             img1 = ic.flatten_image(img)
             img1 = ic.append_labels(img1,label)
-        ''' 
-        ### Test column reordering
-        ic = ImageCreator('./store/lrcx_5953d.csv',n = 90)
-        data = ic.reorder_data_columns(ic.data)
-        #print ohlc.columns.values
-        '''
+            np.save('test_save',img_arr)
+            ic.recreate_image('test_save.npy')
 
+            
         
