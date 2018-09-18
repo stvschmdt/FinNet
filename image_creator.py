@@ -28,16 +28,20 @@ class ImageCreator():
         ### if symbol not in directory, create new directory with symbol
         ### Check symbol directory for nday windows
         ### if no nday windows directory, create new with n + 'd'
+        ### should check in symbol directories for files. If files have already been created, then skip to next symbol.
+        ### this will allow continuous reading of the store directory for new ndays, symbols, and percent label days
+        ## so that data is not being recreated and script can be run when new data is added.
         if filename == None:
             filename = self.filename
         if n == None:
             n = self.ndays
-        ### filename is './store/symbol_numd.csv'
-        ### first split yields '.','store','symbol_numd.csv'
-        ### second split yields 'symbol_numd'
+        ### filename layout is 'store/symbol_numd.csv'
         ### 'num' + 'd' not to be confused with 'n' + 'd'
-        _,symbol = filename.split("/")
-        symbol,_ = symbol.split(".")
+        try:
+            _,symbol = filename.split("/")
+            symbol,_ = symbol.split(".")
+        except ValueError:
+            self.log.error("given data filename is not in format 'store/symbol_numd.csv'")
         n = str(n)+'d'
         ### Switch os.system calls to subprocess calls 
         if symbol in os.listdir('./imgs_as_arrays'):
@@ -46,7 +50,7 @@ class ImageCreator():
             else:
                 self.log.info('creating directory ./imgs_as_arrays/'+symbol+'/{}'.format(n))
                 os.system('mkdir ./imgs_as_arrays/'+symbol+'/'+n)
-                write_dir = './imgs_as_arrays'+symbol+'/'+n+'/'
+                write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'
         else:
             self.log.info('creating directories ./imgs_as_arrays/{}'.format(symbol))
             self.log.info('and ./imgs_as_arrays/'+symbol+'/{}'.format(n))
@@ -128,15 +132,10 @@ class ImageCreator():
         plt.axis('off')
         plt.tight_layout()
         candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
-        ### Saving image here because I'm not sure how to pass to save_image function
-        ### Maybe pass candlestick object?
+        ### dpi can be set as a parameter in class initiation, sets resolution
         plt.savefig(savepath+'.png',dpi = 200)
-#       ax1.set_facecolor('w')
-        #plt.Axes(fig,[0,0,1,1])
+        plt.close()
     
-    def save_image(self,im, im_filename):
-	return 0
-
     def get_num_windows(self,n,df=None):
         ### When appending label, cannot put label for windows where index is out of range
         ###if n = 90, cannot append 2 days out label for window 9-98 because index 100 is
@@ -179,18 +178,16 @@ class ImageCreator():
         '''
     def flatten_image(self,arr):
         ### Flatten image to vector for easier saving and appending of label
-	### 'C' parameter flattens C style, along rows
-	### mapped as [i,j,k] -> [j + rowlen*i + k*rowlen*collen]
-        ### DONT USE ARR1, TO SAVE SPACE
-	arr = arr.flatten('C')
-        return arr
+	### 'C' parameter flattens C style, along rows, e.g. [[1,2,3],[4,5,6]] -> [1,2,3,4,5,6]
+	### mapped as [i,j,k] -> [j + rowlen*i + k*rowlen*collen], but can be simply reshaped
+        ### with np.reshape()
+        return arr.flatten('C')
 
     def get_labels(self,arr,img,df = None):
         ### Calculate percentage change +m days after window
         ### Note that the entire data frame must be passed to df rather than a windowed data frame
         ### This is because the windowed frame doesn't contain the future price
         ### Will need shape in order to recreate image array
-        ### numpy arrays do not preserve the images when appending and deleting. so we need a list
         if df is None:
             dataline = self.ohlc.iloc[arr[-1][0] + self.percent_label_days]
             percent_diff = (np.max(dataline[1:4]) - self.ohlc.iloc[-1][4])/np.max(dataline[1:4])
@@ -200,41 +197,34 @@ class ImageCreator():
             percent_diff = (np.max(dataline[1:4]) - df.iloc[-1][4])/np.max(dataline[1:4])
             return [img.shape[0],img.shape[1],img.shape[2],float(100*percent_diff)]
 
-    def append_labels(self,arr,labels):
+    def append_labels(self,img_arr,labels):
         ### Add label and shape to the end of flattened image array
-        arr = list(arr)
-        print arr[10:20]
-        for i in labels:
-            arr.append(i)
-        print arr[10:20]
-        return arr
+        return np.append(img_arr,labels)
 
     def save_array(self,img_arr,count):
+        ### create save path
         write_file = self.write_dir + 'window' + str(count) + '_label'+str(self.percent_label_days)+'d'
-        with open(write_file,'w') as f:
-            for num in img_arr:
-                f.write("%s\n" % num)
-        return write_file 
+        ### np.save creates a binary file that saves space over saving numbers
+        np.save(write_file,img_arr)
+        ### return write file so image can be recreated
+        return write_file
 
-    def recreate_image(self,write_file):
+    def recreate_image(self,write_file,imshow=False):
         ### Recreate image from numpy file
-        ### This doesn't work yet. The recreated images are corrupted somehow
-        arr = []
-        with open(write_file) as f:
-            arr = [line.rstrip('\n') for line in f]
-        img_arr = map(int,arr[:len(arr)-4])
-        img_arr = np.asarray(img_arr).astype('uint8')
+        img_arr = np.load(write_file + '.npy')
 
         ### peel off labels and remove from image array
-        percent_label = float(arr[-1])
-        shape = (int(arr[-4]),int(arr[-3]),int(arr[-2])) 
-        print shape
-        #print percent_label, shape0, shape1, shape2
-        ### construct image array
+        percent_label = float(img_arr[-1])
+        shape = (int(img_arr[-4]),int(img_arr[-3]),int(img_arr[-2])) 
+        img_arr = np.asarray(img_arr[:len(img_arr)-4].astype('uint8'))
+
+        ### reshape image array from 1D to 3D
         img_arr = np.reshape(img_arr,shape)
-        image = Image.fromarray(img_arr,'RGB')
-        image.show()
-        raw_input("Second Image")
+        if imshow:
+            ### display recreated image
+            image = Image.fromarray(img_arr,'RGB')
+            image.show()
+            raw_input("Recreated image")
 
 
     #do all the things tested in the 'if' statement below
@@ -260,10 +250,7 @@ class ImageCreator():
             img_arr = self.append_labels(img_arr,labels)
             self.log.info("saving array...")
             write_file = self.save_array(img_arr,count)
-            self.recreate_image(write_file)
-            ###Check image after deleting alpha array (need to adjust for flattened image)
-            #img = Image.fromarray(arr,'RGB')
-            #img.show()
+            #self.recreate_image(write_file)
 
 
 
@@ -272,8 +259,9 @@ if __name__ == '__main__':
     days = [30,60,90]
 
     if check_driver == 1:
-        ic = ImageCreator('store/nvda_100d.csv', 90,m=2)
-        ic.driver()
+        for n in days:
+            ic = ImageCreator('store/nvda_100d.csv', n,m=2)
+            ic.driver()
     else:
         ic = ImageCreator('store/nvda_100d.csv',n = 90)
         # Default is 30 day window
