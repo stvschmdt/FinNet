@@ -223,7 +223,7 @@ class ImageCreator():
         with open(write_file) as f:
             arr = [line.rstrip('\n') for line in f]
         img_arr = map(int,arr[:len(arr)-4])
-        
+        img_arr = np.asarray(img_arr).astype('uint8')
 
         ### peel off labels and remove from image array
         percent_label = float(arr[-1])
