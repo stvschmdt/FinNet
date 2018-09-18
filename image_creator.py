@@ -1,10 +1,10 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.mpl_finance as fin
+import mpl_finance as fin
 import logger
 from PIL import Image
-from matplotlib.finance import candlestick_ohlc
+from mpl_finance import candlestick_ohlc
 import os
 
 
@@ -32,8 +32,12 @@ class ImageCreator():
             filename = self.filename
         if n == None:
             n = self.ndays
-        symbol,_ = filename.split(".")
-        _,symbol = symbol.split("/")
+        ### filename is './store/symbol_numd.csv'
+        ### first split yields '.','store','symbol_numd.csv'
+        ### second split yields 'symbol_numd'
+        ### 'num' + 'd' not to be confused with 'n' + 'd'
+        _,symbol = filename.split("/")
+        symbol,_ = symbol.split(".")
         n = str(n)+'d'
         ### Switch os.system calls to subprocess calls 
         if symbol in os.listdir('./imgs_as_arrays'):
@@ -126,7 +130,7 @@ class ImageCreator():
         candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
         ### Saving image here because I'm not sure how to pass to save_image function
         ### Maybe pass candlestick object?
-        plt.savefig(savepath+'.png')
+        plt.savefig(savepath+'.png',dpi = 200)
 #       ax1.set_facecolor('w')
         #plt.Axes(fig,[0,0,1,1])
     
@@ -177,36 +181,61 @@ class ImageCreator():
         ### Flatten image to vector for easier saving and appending of label
 	### 'C' parameter flattens C style, along rows
 	### mapped as [i,j,k] -> [j + rowlen*i + k*rowlen*collen]
-	arr1 = arr.flatten('C')
-        return arr1
+        ### DONT USE ARR1, TO SAVE SPACE
+	arr = arr.flatten('C')
+        return arr
+
     def get_labels(self,arr,img,df = None):
         ### Calculate percentage change +m days after window
         ### Note that the entire data frame must be passed to df rather than a windowed data frame
         ### This is because the windowed frame doesn't contain the future price
         ### Will need shape in order to recreate image array
+        ### numpy arrays do not preserve the images when appending and deleting. so we need a list
         if df is None:
             dataline = self.ohlc.iloc[arr[-1][0] + self.percent_label_days]
             percent_diff = (np.max(dataline[1:4]) - self.ohlc.iloc[-1][4])/np.max(dataline[1:4])
-            return [img.shape[0],img.shape[1],img.shape[2],int(100*percent_diff)]
+            return [img.shape[0],img.shape[1],img.shape[2],float(100*percent_diff)]
         else:
             dataline = df.iloc[arr[-1][0] + self.percent_label_days]
             percent_diff = (np.max(dataline[1:4]) - df.iloc[-1][4])/np.max(dataline[1:4])
-            return [img.shape[0],img.shape[1],img.shape[2],int(100*percent_diff)]
+            return [img.shape[0],img.shape[1],img.shape[2],float(100*percent_diff)]
 
     def append_labels(self,arr,labels):
         ### Add label and shape to the end of flattened image array
-        arr = np.append(arr,labels)
+        arr = list(arr)
+        print arr[10:20]
+        for i in labels:
+            arr.append(i)
+        print arr[10:20]
         return arr
+
+    def save_array(self,img_arr,count):
+        write_file = self.write_dir + 'window' + str(count) + '_label'+str(self.percent_label_days)+'d'
+        with open(write_file,'w') as f:
+            for num in img_arr:
+                f.write("%s\n" % num)
+        return write_file 
 
     def recreate_image(self,write_file):
         ### Recreate image from numpy file
-        arr = np.load(write_file)
-        ### Recreate array
-        percent_label = arr[-1]
-        shape0 = arr[-2]
-        shape1 = arr[-3]
-        shape2 = arr[-4]
-        print shape0, shape1, shape2
+        ### This doesn't work yet. The recreated images are corrupted somehow
+        arr = []
+        with open(write_file) as f:
+            arr = [line.rstrip('\n') for line in f]
+        img_arr = map(int,arr[:len(arr)-4])
+        
+
+        ### peel off labels and remove from image array
+        percent_label = float(arr[-1])
+        shape = (int(arr[-4]),int(arr[-3]),int(arr[-2])) 
+        print shape
+        #print percent_label, shape0, shape1, shape2
+        ### construct image array
+        img_arr = np.reshape(img_arr,shape)
+        image = Image.fromarray(img_arr,'RGB')
+        image.show()
+        raw_input("Second Image")
+
 
     #do all the things tested in the 'if' statement below
     def driver(self):
@@ -227,10 +256,11 @@ class ImageCreator():
             
             img_arr = self.delete_alpha(img_arr)
             labels = self.get_labels(arr,img_arr)
-            #img_arr = self.flatten_image(img_arr)
+            img_arr = self.flatten_image(img_arr)
             img_arr = self.append_labels(img_arr,labels)
             self.log.info("saving array...")
-            np.save(self.write_dir + 'window'+str(count)+'_label'+str(self.percent_label_days)+'d',img_arr)
+            write_file = self.save_array(img_arr,count)
+            self.recreate_image(write_file)
             ###Check image after deleting alpha array (need to adjust for flattened image)
             #img = Image.fromarray(arr,'RGB')
             #img.show()
@@ -238,48 +268,52 @@ class ImageCreator():
 
 
 if __name__ == '__main__':
-    check_driver = 0
+    check_driver = 1
     days = [30,60,90]
 
     if check_driver == 1:
         ic = ImageCreator('store/nvda_100d.csv', 90,m=2)
         ic.driver()
     else:
-        ic = ImageCreator('./store/nvda_100d.csv',n = 90)
+        ic = ImageCreator('store/nvda_100d.csv',n = 90)
         # Default is 30 day window
         generator = ic.rolling_window()
         count = 0
         for i in generator:
+            #self.log.info("rolling window num:{}".format(count))
             count += 1
             arr = ic.convert_dataframe_to_np_array(df=i)
-            #Create figure and axes objects, axes needs to be passed to candlestick
-            fig = plt.figure()
-            ax1= plt.gca()
+            arr = ic.change_date(arr,count)
+            #self.log.info("creating/saving image...")
+            ic.create_image_from_np_array(arr,'temp_im')
+            #self.log.info("reading image...")
+            img_arr = ic.read_image_to_np_array('temp_im')
+            img_arr = ic.delete_alpha(img_arr)
+            image = Image.fromarray(img_arr,'RGB')
+            image.show()
+            raw_input("First Image")
+            arr_shape = img_arr.shape
+            #labels = ic.get_labels(arr,img_arr)
+            img_arr = ic.flatten_image(img_arr)
+            img_arr = list(img_arr)
+            print "len1",len(img_arr)
+            img_arr.append(arr_shape)
+            print "len2",len(img_arr)
+            #img_arr = np.delete(img_arr,[len(img_arr)-3,len(img_arr)-2,len(img_arr)-1])
 
-            #Replace date strings with indices
-            for i in range(len(arr)):
-                arr[i][0] = i - 1 + count
-            #create candlestick chart with matplotlib, hexadecimals create green and red candlesticks
-            candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
-#           ax1.set_facecolor('w')
-            plt.tight_layout()
-            #turn off axes around the plot
-            plt.axis('off')
-            #plt.Axes(fig,[0,0,1,1])
-            plt.xlim(0,len(arr))
-            # y limits are the min and max of the ohlc data
-            plt.ylim(np.min(arr[:,1:5]),np.max(arr[:,1:5]))
-            plt.savefig('./test1.png')
-            plt.close()
-            #plt.show()
-            img = np.asarray(Image.open('./test1.png'))
-            ### Test mapping from 1D array back to 3D array to recreate image array
-            label = ic.get_labels(arr,img)
-            
-            img1 = ic.flatten_image(img)
-            img1 = ic.append_labels(img1,label)
-            np.save('test_save',img_arr)
-            ic.recreate_image('test_save.npy')
+            img_arr = np.asarray(img_arr[0:len(img_arr)-1])
+            img_arr1 = np.reshape(img_arr,arr_shape)
+            image = Image.fromarray(img_arr1,'RGB')
+            image.show()
+            raw_input("Second Image")
+            #img_arr = ic.append_labels(img_arr,labels)
+            #self.log.info("saving array...")
+            #np.save('recreate_test',img_arr)
+            #ic.recreate_image('recreate_test.npy',img_arr)
+            raw_input("Press enter to continue")
+
+            ###Check image after deleting alpha array (need to adjust for flattened image)
+            #img = Image.fromarray(arr,'RGB')
 
             
         
