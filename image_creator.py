@@ -263,7 +263,7 @@ if __name__ == '__main__':
 
     if check_driver == 1:
         for n in days:
-            ic = ImageCreator('store/nvda_100d.csv', n,m=2)
+            ic = ImageCreator('store/goog_100d.csv', n,m=2)
             ic.driver()
     else:
         ic = ImageCreator('store/nvda_100d.csv',n = 90)
