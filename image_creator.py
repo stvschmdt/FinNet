@@ -13,7 +13,8 @@ import os
 #class to read in csv from store plus operations
 ### Add symbol directory to imags_as_arrays, i.e. /imgs_as_arrays/amzn_5953d/30d, or 90d
 class ImageCreator():
-    def __init__(self, filename, n=30, m = 2):
+    def __init__(self, filename, n=30, m = 2,plot_dpi = 50):
+        self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
         self.percent_label_days = m
 	self.filename = filename
 	self.ndays = n
@@ -118,11 +119,13 @@ class ImageCreator():
             arr[j][0] = j - 1 + count
         return arr
 
-    def create_image_from_np_array(self,arr,savepath, n=None):
+    def create_image_from_np_array(self,arr,savepath, n=None, plot_dpi = None):
+        if plot_dpi == None:
+            plot_dpi = self.plot_dpi
         if n == None:
             n = self.ndays
         #create candlestick chart with matplotlib
-        fig = plt.figure()
+        fig = plt.figure(figsize=(2,2)) #figsize can be edited to make bigger or smaller
         ax1 = plt.gca()
         #x limits are the low and high indices, day 0 to day nday for window 1
         # y limits are the min and max of the ohlc data
@@ -133,7 +136,7 @@ class ImageCreator():
         plt.tight_layout()
         candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
         ### dpi can be set as a parameter in class initiation, sets resolution
-        plt.savefig(savepath+'.png',dpi = 200)
+        plt.savefig(savepath+'.png',dpi = plot_dpi)
         plt.close()
     
     def get_num_windows(self,n,df=None):
@@ -250,7 +253,7 @@ class ImageCreator():
             img_arr = self.append_labels(img_arr,labels)
             self.log.info("saving array...")
             write_file = self.save_array(img_arr,count)
-            #self.recreate_image(write_file)
+            #self.recreate_image(write_file,imshow=True)
 
 
 
