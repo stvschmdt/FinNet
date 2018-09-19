@@ -23,6 +23,32 @@ class ImageCreator():
 	self.data = self.load_ohlc_csv()
         self.ohlc = self.reorder_data_columns()
         self.write_dir = self.check_dir()
+        
+        print "Sample driver code"
+        print ('''temp_path = './temp_im'; use to set a temporary path for images 
+        generator = ic.rolling_window(); create a generator object containing ndays
+        count = 0; set counter for filenames
+        for i in generator:; loop through generator, each i is nday window
+            count += 1
+            arr = self.convert_dataframe_to_np_array(df=i)
+            arr = self.change_date(arr,count); changes date string to 0-n integers
+            self.create_image_from_np_array(arr,temp_path); creates image from window, saves to temp_path
+            img_arr = self.read_image_to_np_array(temp_path); reads image from temp_path, returns array of pixels
+            Note that this is handled in functions, but all pixel values must be dtype = uint8 to ensure images
+            are not corrupted
+            
+            img_arr = self.delete_alpha(img_arr); removes alpha channel of image
+            labels = self.get_labels(arr,img_arr); gets labels from data, labels are image shape and percent change m days out
+            img_arr = self.flatten_image(img_arr); flattens array to 1D
+            img_arr = self.append_labels(img_arr,labels); appends labels to 1D array
+            write_file = self.save_array(img_arr,count); saves array to below:
+            'write_file = self.write_dir + window(count)_label(self.percent_label_days)d'
+            where self.write_dir is
+            'self.write_dir = ./imgs_as_arrays/(symbol)/(n)/'
+            and items wrapped in () are variables in code
+
+            #self.recreate_image(write_file,imshow=True); method to recreate image from array, imshow=True displays image during runtime
+            ''')
 
     def check_dir(self,filename=None,n=None):
         ### Check symbol directory and data directory
@@ -254,6 +280,8 @@ class ImageCreator():
             self.log.info("saving array...")
             write_file = self.save_array(img_arr,count)
             #self.recreate_image(write_file,imshow=True)
+        ### Remove temporary file
+        os.system("rm "+temp_path+".png")
 
 
 
@@ -263,7 +291,7 @@ if __name__ == '__main__':
 
     if check_driver == 1:
         for n in days:
-            ic = ImageCreator('store/goog_100d.csv', n,m=2)
+            ic = ImageCreator('store/nvda_100d.csv', n,m=2,plot_dpi = 50)
             ic.driver()
     else:
         ic = ImageCreator('store/nvda_100d.csv',n = 90)
