@@ -267,11 +267,25 @@ class ImageCreator():
 
    def parse_recreate_image(self, filename, imshow=False):
 	#in case we dont have write_file in memory - standalone function
-	filename = filename.split('.')
+	filename = filename.split('.')[0]
 	row = self.recreate_image(filename, imshow)
 	x = row[0]
 	y = row[1]
 	return x, y
+
+    def parse_recreate_directory(self, directory):
+	#loop through directory to store all in np array tensor
+	files = os.listdir(directory)
+	x_ = []
+	y_ = []
+	for f in files:
+	    row = parse_recreate_image(f)
+	    x_.append(row[0])
+	    y_.append(row[1])
+	#return as np arrays ready to go
+	x_ = np.array(x_)
+	y_ = np.array(y_)
+	return x_, y_
 
 
     #do all the things tested in the 'if' statement below
