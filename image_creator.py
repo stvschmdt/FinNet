@@ -6,6 +6,8 @@ import logger
 from PIL import Image
 from mpl_finance import candlestick_ohlc
 import os
+### Test performance
+import time
 
 
 #format of API renamed from data_collector.py
@@ -13,35 +15,34 @@ import os
 #class to read in csv from store plus operations
 ### Add symbol directory to imags_as_arrays, i.e. /imgs_as_arrays/amzn_5953d/30d, or 90d
 class ImageCreator():
-    def __init__(self, filename=None, n=30, m = 2,plot_dpi = 50):
-	#in case we want to use functionality without running any code
-	if filename != None:
-	    self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
-	    self.percent_label_days = m
+    def __init__(self, filename, n=30, m = 2,plot_dpi = 50):
+        if filename != None:
+            self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
+            self.percent_label_days = m
 	    self.filename = filename
 	    self.ndays = n
 	    self.log = logger.Logging()
 	    self.log.info('running for days: {}'.format(n))
+            self.log.info('label days: {}'.format(m))
 	    self.data = self.load_ohlc_csv()
-	    self.ohlc = self.reorder_data_columns()
-	    self.write_dir = self.check_dir()
-    	else:
-	    self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
-	    self.percent_label_days = m
-	    self.filename = filename
-	    self.ndays = n
-	    self.log = logger.Logging()
+            self.ohlc = self.reorder_data_columns()
+            self.write_dir = self.check_dir()
+        else:
+            self.plot_dpi = plot_dpi
+            self.percent_label_days = m
+            self.filename = filename
+            self.ndays = n
+            self.log = logger.Logging()
         
         print "Sample driver code"
-        print ('''temp_path = './temp_im'; use to set a temporary path for images 
+        print (''' 
         generator = ic.rolling_window(); create a generator object containing ndays
         count = 0; set counter for filenames
         for i in generator:; loop through generator, each i is nday window
             count += 1
             arr = self.convert_dataframe_to_np_array(df=i)
             arr = self.change_date(arr,count); changes date string to 0-n integers
-            self.create_image_from_np_array(arr,temp_path); creates image from window, saves to temp_path
-            img_arr = self.read_image_to_np_array(temp_path); reads image from temp_path, returns array of pixels
+            img_arr = self.create_image_from_np_array(arr); creates image from window, saves to temp_path
             Note that this is handled in functions, but all pixel values must be dtype = uint8 to ensure images
             are not corrupted
             
@@ -58,7 +59,7 @@ class ImageCreator():
             #self.recreate_image(write_file,imshow=True); method to recreate image from array, imshow=True displays image during runtime
             ''')
 
-    def check_dir(self,filename=None,n=None):
+    def check_dir(self,filename=None,n=None,m=None):
         ### Check symbol directory and data directory
         ### if symbol not in directory, create new directory with symbol
         ### Check symbol directory for nday windows
@@ -70,6 +71,8 @@ class ImageCreator():
             filename = self.filename
         if n == None:
             n = self.ndays
+        if m == None:
+            m = self.percent_label_days
         ### filename layout is 'store/symbol_numd.csv'
         ### 'num' + 'd' not to be confused with 'n' + 'd'
         try:
@@ -78,20 +81,20 @@ class ImageCreator():
         except ValueError:
             self.log.error("given data filename is not in format 'store/symbol_numd.csv'")
         n = str(n)+'d'
-        ### Switch os.system calls to subprocess calls 
-        if symbol in os.listdir('./imgs_as_arrays'):
-            if n in os.listdir('./imgs_as_arrays/'+symbol):
-                write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'
+        m = 'label'+str(m)+'d'
+        ### Switch os.system calls to subprocess calls
+        try:
+            dir_len = len(os.listdir('./imgs_as_arrays/'+symbol+'/'+n+'/'+m+'/'))
+            if dir_len < self.get_num_windows(self.ndays):
+                write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'+m+'/'
             else:
-                self.log.info('creating directory ./imgs_as_arrays/'+symbol+'/{}'.format(n))
-                os.system('mkdir ./imgs_as_arrays/'+symbol+'/'+n)
-                write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'
-        else:
-            self.log.info('creating directories ./imgs_as_arrays/{}'.format(symbol))
-            self.log.info('and ./imgs_as_arrays/'+symbol+'/{}'.format(n))
-            os.system('mkdir ./imgs_as_arrays/'+symbol)
-            os.system('mkdir ./imgs_as_arrays/'+symbol+'/'+n)
-            write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'
+                write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'+m+'/'
+                self.log.info('skipping directory {}'.format(write_dir))
+                write_dir = None
+
+        except:
+            os.system('mkdir -p ./imgs_as_arrays/'+symbol+'/'+n+'/'+m+'/')
+            write_dir = './imgs_as_arrays/'+symbol+'/'+n+'/'+m+'/'
         return write_dir
                 
 
@@ -145,7 +148,8 @@ class ImageCreator():
                 self.log.error('is past last day in data'.format(len(load_ohlc_csv(self.filename))+1)) 
             else:
                 for i in range(num_iter):
-                    yield self.n_day(i,self.ndays+i)
+                    yield self.n_day(i,self.ndays+i,df=df)
+                    
     def change_date(self,arr,count):
         ### Changes date string into index, adds count so that indices will be (for n = 30):
         ### 0-29 for window 0; 1-30 for window 1; 2-31 for window 2; etc
@@ -153,25 +157,41 @@ class ImageCreator():
             arr[j][0] = j - 1 + count
         return arr
 
-    def create_image_from_np_array(self,arr,savepath, n=None, plot_dpi = None):
+    def create_image_from_np_array(self,arr, n=None, plot_dpi = None):
         if plot_dpi == None:
             plot_dpi = self.plot_dpi
         if n == None:
             n = self.ndays
         #create candlestick chart with matplotlib
-        fig = plt.figure(figsize=(2,2)) #figsize can be edited to make bigger or smaller
+        fig = plt.figure(figsize=(2,2),dpi=plot_dpi) #figsize can be edited to make bigger or smaller
         ax1 = plt.gca()
         #x limits are the low and high indices, day 0 to day nday for window 1
         # y limits are the min and max of the ohlc data
-        plt.xlim((0,n))
+        plt.xlim((arr[0,0],n+arr[0,0]))
         plt.ylim(np.min(arr[:,1:5]),np.max(arr[:,1:5]))
         #turn off axes around the plot
         plt.axis('off')
         plt.tight_layout()
         candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
         ### dpi can be set as a parameter in class initiation, sets resolution
-        plt.savefig(savepath+'.png',dpi = plot_dpi)
+        #convert matplotlib figure to 4D numpy array (RGBA channels). Alpha channel (opacity) should be removed.
+        #No need for writing or reading an image.
+        #This would save runtime, but the shape of the resulting array is different from pulling a saved array
+        #with np.asarray, and I am not sure why. This is the same method used in converter.py 
+
+        #http://www.icare.univ-lille1.fr/wiki/index.php/How_to_convert_a_matplotlib_figure_to_a_numpy_array_or_a_PIL_image
+        # draw the renderer
+        fig.canvas.draw()
+
+        # Get the RGBA Buffer from the figure
+        w,h = fig.canvas.get_width_height()
+        buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
+        buf.shape = (w,h,4)
+
+        #canvas.tostring_argb give pixmap in ARGB mode. Roll the alpha channel to have it in RGBA mode
+        buf = np.roll(buf,3,axis = 2)
         plt.close()
+	return buf
     
     def get_num_windows(self,n,df=None):
         ### When appending label, cannot put label for windows where index is out of range
@@ -190,29 +210,7 @@ class ImageCreator():
         ### Remove opacity channel from image array
         ### Would keeping this in be more accurate?
         return np.delete(arr,3,2)
-        '''
-        convert matplotlib figure to 4D numpy array (RGBA channels). Alpha channel (opacity) should be removed.
-        No need for writing or reading an image.
-        This would save runtime, but the shape of the resulting array is different from pulling a saved array
-        with np.asarray, and I am not sure why. This is the same method used in converter.py 
 
-        http://www.icare.univ-lille1.fr/wiki/index.php/How_to_convert_a_matplotlib_figure_to_a_numpy_array_or_a_PIL_image
-
-        
-        
-        # draw the renderer
-        fig.canvas.draw()
-
-        # Get the RGBA Buffer from the figure
-        w,h = fig.canvas.get_width_height()
-        buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
-        buf.shape = (w,h,4)
-
-        #canvas.tostring_argb give pixmap in ARGB mode. Roll the alpha channel to have it in RGBA mode
-        buf = np.roll(buf,3,axis = 2)
-
-	return buf
-        '''
     def flatten_image(self,arr):
         ### Flatten image to vector for easier saving and appending of label
 	### 'C' parameter flattens C style, along rows, e.g. [[1,2,3],[4,5,6]] -> [1,2,3,4,5,6]
@@ -240,7 +238,7 @@ class ImageCreator():
 
     def save_array(self,img_arr,count):
         ### create save path
-        write_file = self.write_dir + 'window' + str(count) + '_label'+str(self.percent_label_days)+'d'
+        write_file = self.write_dir + 'window' + str(count)
         ### np.save creates a binary file that saves space over saving numbers
         np.save(write_file,img_arr)
         ### return write file so image can be recreated
@@ -254,45 +252,45 @@ class ImageCreator():
         percent_label = float(img_arr[-1])
         shape = (int(img_arr[-4]),int(img_arr[-3]),int(img_arr[-2])) 
         img_arr = np.asarray(img_arr[:len(img_arr)-4].astype('uint8'))
-
         ### reshape image array from 1D to 3D
         img_arr = np.reshape(img_arr,shape)
         if imshow:
             ### display recreated image
-            image = Image.fromarray(img_arr,'RGB')
+            image = Image.fromarray(img_arr,'RGBA')
             image.show()
             raw_input("Recreated image")
-	return img_arr, percent_label
+        return img_arr, percent_label
 
-
-   def parse_recreate_image(self, filename, imshow=False):
-	#in case we dont have write_file in memory - standalone function
-	filename = filename.split('.')[0]
-	row = self.recreate_image(filename, imshow)
-	x = row[0]
-	y = row[1]
-	return x, y
+    def parse_recreate_image(self, filename, imshow = False):
+        #in case we dont have write_file in memory - standalone function
+        filename = filename.split('.')[0]
+        row = self.recreate_image(filename, imshow)
+        x = row[0]
+        y = row[1]
+        return x, y
 
     def parse_recreate_directory(self, directory):
-	#loop through directory to store all in np array tensor
-	files = os.listdir(directory)
-	x_ = []
-	y_ = []
-	for f in files:
-	    row = parse_recreate_image(f)
-	    x_.append(row[0])
-	    y_.append(row[1])
-	#return as np arrays ready to go
-	x_ = np.array(x_)
-	y_ = np.array(y_)
-	return x_, y_
+        #loop through directory to store all in np array tensor
+        files = os.listdir(directory)
+        x_ = []
+        y_ = []
+        for f in files:
+            row = parse_recreate_image(f)
+            x_.append(row[0])
+            y_.append(row[1])
+        #return as np arrays ready to go
+        x_ = np.array(x_)
+        y_ = np.array(y_)
+        return x_, y_
 
 
     #do all the things tested in the 'if' statement below
     def driver(self):
         ### temporary path for the images to be saved at. There's probably a better way to do this
-        temp_path = './temp_im'
-        generator = ic.rolling_window()
+        if self.write_dir == None:
+            generator = []
+        else:
+            generator = ic.rolling_window()
         count = 0
         ### generator function only returns one window at a time, potentially speeding image making
         for i in generator:
@@ -300,31 +298,43 @@ class ImageCreator():
             count += 1
             arr = self.convert_dataframe_to_np_array(df=i)
             arr = self.change_date(arr,count)
-            self.log.info("creating/saving image...")
-            self.create_image_from_np_array(arr,temp_path)
-            self.log.info("reading image...")
-            img_arr = self.read_image_to_np_array(temp_path)
+            self.log.info("creating image...")
+            t_im0 = time.time()
+            img_arr = self.create_image_from_np_array(arr)
+            #self.log.info("reading image...")
+            #img_arr = self.read_image_to_np_array(temp_path)
             
-            img_arr = self.delete_alpha(img_arr)
+            #img_arr = self.delete_alpha(img_arr)
             labels = self.get_labels(arr,img_arr)
+            arr = None
             img_arr = self.flatten_image(img_arr)
             img_arr = self.append_labels(img_arr,labels)
+            t_im1 = time.time() - t_im0
+            self.log.info("Time working with image = {}".format(t_im1))
             self.log.info("saving array...")
             write_file = self.save_array(img_arr,count)
+            img_arr = None
             #self.recreate_image(write_file,imshow=True)
-        ### Remove temporary file
-        os.system("rm "+temp_path+".png")
 
 
 
 if __name__ == '__main__':
     check_driver = 1
     days = [30,60,90]
-
+    percent_label_days = [1,2,5]
     if check_driver == 1:
-        for n in days:
-            ic = ImageCreator('store/nvda_5953d.csv', n,m=2,plot_dpi = 50)
-            ic.driver()
+        for filename in os.listdir('store/'):
+            str_filename = filename
+            t0 = time.time()
+            for day in days:
+                for label_day in percent_label_days:
+                    ic = ImageCreator('store/'+str_filename, n=day,m=label_day,plot_dpi = 25)
+                    ic.driver()
+            t1 = time.time()
+            t = t1-t0
+            ic.log.info('time for symbol = {}'.format(t))
+        #ic = ImageCreator('store/nvda_100d.csv',n = 90,plot_dpi = 25)
+        #ic.driver()
     else:
         ic = ImageCreator('store/nvda_100d.csv',n = 90)
         # Default is 30 day window
