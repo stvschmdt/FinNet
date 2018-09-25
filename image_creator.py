@@ -13,16 +13,24 @@ import os
 #class to read in csv from store plus operations
 ### Add symbol directory to imags_as_arrays, i.e. /imgs_as_arrays/amzn_5953d/30d, or 90d
 class ImageCreator():
-    def __init__(self, filename, n=30, m = 2,plot_dpi = 50):
-        self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
-        self.percent_label_days = m
-	self.filename = filename
-	self.ndays = n
-	self.log = logger.Logging()
-	self.log.info('running for days: {}'.format(n))
-	self.data = self.load_ohlc_csv()
-        self.ohlc = self.reorder_data_columns()
-        self.write_dir = self.check_dir()
+    def __init__(self, filename=None, n=30, m = 2,plot_dpi = 50):
+	#in case we want to use functionality without running any code
+	if filename != None:
+	    self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
+	    self.percent_label_days = m
+	    self.filename = filename
+	    self.ndays = n
+	    self.log = logger.Logging()
+	    self.log.info('running for days: {}'.format(n))
+	    self.data = self.load_ohlc_csv()
+	    self.ohlc = self.reorder_data_columns()
+	    self.write_dir = self.check_dir()
+    	else:
+	    self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
+	    self.percent_label_days = m
+	    self.filename = filename
+	    self.ndays = n
+	    self.log = logger.Logging()
         
         print "Sample driver code"
         print ('''temp_path = './temp_im'; use to set a temporary path for images 
@@ -254,6 +262,16 @@ class ImageCreator():
             image = Image.fromarray(img_arr,'RGB')
             image.show()
             raw_input("Recreated image")
+	return img_arr, percent_label
+
+
+   def parse_recreate_image(self, filename, imshow=False):
+	#in case we dont have write_file in memory - standalone function
+	filename = filename.split('.')
+	row = self.recreate_image(filename, imshow)
+	x = row[0]
+	y = row[1]
+	return x, y
 
 
     #do all the things tested in the 'if' statement below
@@ -291,7 +309,7 @@ if __name__ == '__main__':
 
     if check_driver == 1:
         for n in days:
-            ic = ImageCreator('store/nvda_100d.csv', n,m=2,plot_dpi = 50)
+            ic = ImageCreator('store/nvda_5953d.csv', n,m=2,plot_dpi = 50)
             ic.driver()
     else:
         ic = ImageCreator('store/nvda_100d.csv',n = 90)
