@@ -304,7 +304,7 @@ class ImageCreator():
             #self.log.info("reading image...")
             #img_arr = self.read_image_to_np_array(temp_path)
             
-            #img_arr = self.delete_alpha(img_arr)
+            img_arr = self.delete_alpha(img_arr)
             labels = self.get_labels(arr,img_arr)
             arr = None
             img_arr = self.flatten_image(img_arr)
