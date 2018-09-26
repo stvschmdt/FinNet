@@ -27,6 +27,7 @@ class ImageCreator():
 	    self.data = self.load_ohlc_csv()
             self.ohlc = self.reorder_data_columns()
             self.write_dir = self.check_dir()
+            self.label_dir = self.write_dir
         else:
             self.plot_dpi = plot_dpi
             self.percent_label_days = m
@@ -224,23 +225,23 @@ class ImageCreator():
         ### This is because the windowed frame doesn't contain the future price
         ### Will need shape in order to recreate image array
         if df is None:
-            dataline = self.ohlc.iloc[arr[-1][0] + self.percent_label_days]
-            percent_diff = (np.max(dataline[1:4]) - self.ohlc.iloc[-1][4])/np.max(dataline[1:4])
-            return [img.shape[0],img.shape[1],img.shape[2],float(100*percent_diff)]
+            dataline = self.ohlc.iloc[arr[-1,0] + self.percent_label_days]
+            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/np.max(dataline[1:4])
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
         else:
-            dataline = df.iloc[arr[-1][0] + self.percent_label_days]
-            percent_diff = (np.max(dataline[1:4]) - df.iloc[-1][4])/np.max(dataline[1:4])
-            return [img.shape[0],img.shape[1],img.shape[2],float(100*percent_diff)]
+            dataline = df.iloc[arr[-1,0] + self.percent_label_days]
+            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/np.max(dataline[1:4])
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
 
-    def append_labels(self,img_arr,labels):
+    def append_shape(self,img_arr,shape):
         ### Add label and shape to the end of flattened image array
-        return np.append(img_arr,labels)
+        return np.append(img_arr,shape)
 
     def save_array(self,img_arr,count):
         ### create save path
         write_file = self.write_dir + 'window' + str(count)
-        ### np.save creates a binary file that saves space over saving numbers
-        np.save(write_file,img_arr)
+        ### np.save creates a binary file that saves space over saving numbers; float16 saves space
+        np.save(write_file,img_arr.astype('uint8'))
         ### return write file so image can be recreated
         return write_file
 
@@ -249,14 +250,13 @@ class ImageCreator():
         img_arr = np.load(write_file + '.npy')
 
         ### peel off labels and remove from image array
-        percent_label = float(img_arr[-1])
-        shape = (int(img_arr[-4]),int(img_arr[-3]),int(img_arr[-2])) 
-        img_arr = np.asarray(img_arr[:len(img_arr)-4].astype('uint8'))
+        shape = (int(img_arr[-3]),int(img_arr[-2]),int(img_arr[-1])) 
+        img_arr = np.asarray(img_arr[:len(img_arr)-3].astype('uint8'))
         ### reshape image array from 1D to 3D
         img_arr = np.reshape(img_arr,shape)
         if imshow:
             ### display recreated image
-            image = Image.fromarray(img_arr,'RGBA')
+            image = Image.fromarray(img_arr,'RGB')
             image.show()
             raw_input("Recreated image")
         return img_arr, percent_label
@@ -283,6 +283,12 @@ class ImageCreator():
         y_ = np.array(y_)
         return x_, y_
 
+    def save_label(self,labels):
+        print self.label_dir + 'yvals'
+        np.save(self.label_dir+'yvals',labels)
+
+    def __del__(self):
+        self.log.info("Object deleted")
 
     #do all the things tested in the 'if' statement below
     def driver(self):
@@ -292,6 +298,7 @@ class ImageCreator():
         else:
             generator = ic.rolling_window()
         count = 0
+        labels = np.asarray([])
         ### generator function only returns one window at a time, potentially speeding image making
         for i in generator:
             self.log.info("rolling window num:{}".format(count))
@@ -299,22 +306,21 @@ class ImageCreator():
             arr = self.convert_dataframe_to_np_array(df=i)
             arr = self.change_date(arr,count)
             self.log.info("creating image...")
-            t_im0 = time.time()
             img_arr = self.create_image_from_np_array(arr)
-            #self.log.info("reading image...")
-            #img_arr = self.read_image_to_np_array(temp_path)
-            
             img_arr = self.delete_alpha(img_arr)
-            labels = self.get_labels(arr,img_arr)
+            shape,label = self.get_labels(arr,img_arr)
+            labels = np.append(labels,label)
             arr = None
             img_arr = self.flatten_image(img_arr)
-            img_arr = self.append_labels(img_arr,labels)
-            t_im1 = time.time() - t_im0
-            self.log.info("Time working with image = {}".format(t_im1))
+            img_arr = self.append_shape(img_arr,shape)
             self.log.info("saving array...")
             write_file = self.save_array(img_arr,count)
             img_arr = None
             #self.recreate_image(write_file,imshow=True)
+        if self.label_dir == None:
+            pass
+        else:
+            self.save_label(labels)
 
 
 
@@ -322,6 +328,7 @@ if __name__ == '__main__':
     check_driver = 1
     days = [30,60,90]
     percent_label_days = [1,2,5]
+    label_arr = np.asarray([])
     if check_driver == 1:
         for filename in os.listdir('store/'):
             str_filename = filename
@@ -330,9 +337,12 @@ if __name__ == '__main__':
                 for label_day in percent_label_days:
                     ic = ImageCreator('store/'+str_filename, n=day,m=label_day,plot_dpi = 25)
                     ic.driver()
+                    del ic
+
+                    
             t1 = time.time()
             t = t1-t0
-            ic.log.info('time for symbol = {}'.format(t))
+            #ic.log.info('time for symbol = {}'.format(t))
         #ic = ImageCreator('store/nvda_100d.csv',n = 90,plot_dpi = 25)
         #ic.driver()
     else:
