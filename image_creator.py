@@ -165,7 +165,7 @@ class ImageCreator():
             n = self.ndays
         #create candlestick chart with matplotlib
         fig = plt.figure(figsize=(2,2),dpi=plot_dpi) #figsize can be edited to make bigger or smaller
-        ax1 = plt.gca()
+        #ax1 = plt.gca()
         #x limits are the low and high indices, day 0 to day nday for window 1
         # y limits are the min and max of the ohlc data
         plt.xlim((arr[0,0],n+arr[0,0]))
@@ -173,16 +173,17 @@ class ImageCreator():
         #turn off axes around the plot
         plt.axis('off')
         plt.tight_layout()
-        candlestick_ohlc(ax1,arr,colorup='#77d879', colordown='#db3f3f')
+        candlestick_ohlc(fig.axes[0],arr,colorup='#77d879', colordown='#db3f3f')
         ### dpi can be set as a parameter in class initiation, sets resolution
         #convert matplotlib figure to 4D numpy array (RGBA channels). Alpha channel (opacity) should be removed.
         #No need for writing or reading an image.
-        #This would save runtime, but the shape of the resulting array is different from pulling a saved array
-        #with np.asarray, and I am not sure why. This is the same method used in converter.py 
 
         #http://www.icare.univ-lille1.fr/wiki/index.php/How_to_convert_a_matplotlib_figure_to_a_numpy_array_or_a_PIL_image
         # draw the renderer
         fig.canvas.draw()
+        #print fig.axes[0].get_children()
+        # ax.get_children may allow optimization: see:
+        #https://bastibe.de/2013-05-30-speeding-up-matplotlib.html
 
         # Get the RGBA Buffer from the figure
         w,h = fig.canvas.get_width_height()
@@ -330,6 +331,7 @@ if __name__ == '__main__':
     percent_label_days = [1,2,5]
     label_arr = np.asarray([])
     if check_driver == 1:
+        '''
         for filename in os.listdir('store/'):
             str_filename = filename
             t0 = time.time()
@@ -338,14 +340,13 @@ if __name__ == '__main__':
                     ic = ImageCreator('store/'+str_filename, n=day,m=label_day,plot_dpi = 25)
                     ic.driver()
                     del ic
+        '''
+        ic = ImageCreator('store/ba_5953d.csv', n=90,m=1,plot_dpi = 25)
+        ic.driver()
 
-                    
-            t1 = time.time()
-            t = t1-t0
-            #ic.log.info('time for symbol = {}'.format(t))
-        #ic = ImageCreator('store/nvda_100d.csv',n = 90,plot_dpi = 25)
-        #ic.driver()
     else:
+        pass
+        '''
         ic = ImageCreator('store/nvda_100d.csv',n = 90)
         # Default is 30 day window
         generator = ic.rolling_window()
@@ -385,6 +386,6 @@ if __name__ == '__main__':
 
             ###Check image after deleting alpha array (need to adjust for flattened image)
             #img = Image.fromarray(arr,'RGB')
-
+            '''
             
         
