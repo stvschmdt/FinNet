@@ -15,7 +15,7 @@ import time
 #class to read in csv from store plus operations
 ### Add symbol directory to imags_as_arrays, i.e. /imgs_as_arrays/amzn_5953d/30d, or 90d
 class ImageCreator():
-    def __init__(self, filename, n=30, m = 2,plot_dpi = 50):
+    def __init__(self, filename=None, n=30, m = 2,plot_dpi = 50):
         if filename != None:
             self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
             self.percent_label_days = m
@@ -272,13 +272,13 @@ class ImageCreator():
 
     def parse_recreate_directory(self, directory, n_day='30d', d_out='2d'):
         #loop through directory to store all in np array tensor
-	full_dir = directory + '/' + n_day +'/' + d_out
+	full_dir = directory + '/' + n_day +'/' + d_out + '/'
         files = os.listdir(full_dir)
         x_ = []
         y_ = []
         for f in files:
 	    if 'yvals' not in f:
-		row = recreate_image(f)
+		row = self.recreate_image(full_dir + f)
 		x_.append(row)
 	    else:
 		y_.append(row)
