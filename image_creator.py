@@ -228,11 +228,11 @@ class ImageCreator():
         if df is None:
             dataline = self.ohlc.iloc[arr[-1,0] + self.percent_label_days]
             percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/np.max(dataline[1:4])
-            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
         else:
             dataline = df.iloc[arr[-1,0] + self.percent_label_days]
             percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/np.max(dataline[1:4])
-            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
 
     def append_shape(self,img_arr,shape):
         ### Add label and shape to the end of flattened image array
@@ -281,7 +281,7 @@ class ImageCreator():
 		row = self.recreate_image(full_dir + f)
 		x_.append(row)
 	    else:
-		y_.append(row)
+		y_ = np.load(full_dir + f)
         #return as np arrays ready to go
         x_ = np.array(x_)
         y_ = np.array(y_)
