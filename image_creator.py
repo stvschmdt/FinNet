@@ -248,7 +248,7 @@ class ImageCreator():
 
     def recreate_image(self,write_file,imshow=False):
         ### Recreate image from numpy file
-        img_arr = np.load(write_file + '.npy')
+        img_arr = np.load(write_file)
 
         ### peel off labels and remove from image array
         shape = (int(img_arr[-3]),int(img_arr[-2]),int(img_arr[-1])) 
@@ -260,7 +260,7 @@ class ImageCreator():
             image = Image.fromarray(img_arr,'RGB')
             image.show()
             raw_input("Recreated image")
-        return img_arr, percent_label
+        return img_arr
 
     def parse_recreate_image(self, filename, imshow = False):
         #in case we dont have write_file in memory - standalone function
@@ -277,9 +277,11 @@ class ImageCreator():
         x_ = []
         y_ = []
         for f in files:
-            row = parse_recreate_image(f)
-            x_.append(row[0])
-            y_.append(row[1])
+	    if 'yvals' not in f:
+		row = recreate_image(f)
+		x_.append(row)
+	    else:
+		y_.append(row)
         #return as np arrays ready to go
         x_ = np.array(x_)
         y_ = np.array(y_)
