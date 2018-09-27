@@ -270,7 +270,7 @@ class ImageCreator():
         y = row[1]
         return x, y
 
-    def parse_recreate_directory(self, directory, n_day='30d', d_out='label2d'):
+    def parse_recreate_directory(self, directory, n_day='30d', d_out='2d'):
         #loop through directory to store all in np array tensor
 	full_dir = directory + '/' + n_day +'/' + d_out
         files = os.listdir(full_dir)
