@@ -15,6 +15,7 @@ import time
 import sys
 
 import logger
+import image_creator as ic
 
 tf.logging.set_verbosity(tf.logging.INFO)
 global FLAGS
