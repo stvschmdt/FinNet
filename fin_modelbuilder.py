@@ -78,7 +78,7 @@ class ModelBuilder(object):
         pool2 = tf.layers.average_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
         print('pool 2',pool2.shape)
         # dense layer
-        pool2_flat = tf.reshape(pool2, [-1, 14*14*48])
+        pool2_flat = tf.reshape(pool2, [-1, 25*25*48])
         print(pool2_flat.shape)
         dense1 = tf.layers.dense(inputs=pool2_flat, units=900, activation=tf.nn.elu, kernel_initializer=he_init)
         print(dense1.shape)
@@ -109,43 +109,30 @@ class ModelBuilder(object):
         return tf.estimator.EstimatorSpec(mode=mode, loss=loss, eval_metric_ops=eval_metric_ops)
 
 if __name__ == '__main__':
+    #leave parser setup in case we want to use it
     parser = argparse.ArgumentParser(description='load data, passing in train and/or test filenames')
-    parser.add_argument('-f1', dest='file1', default=None, help='first .pkl file to use as images')
+    parser.add_argument('-f1', dest='file1', default=None, help='directory storing x, y values')
     parser.add_argument('-l1', dest='label1', default=None, help='first y labels file')
     parser.add_argument('-f2', dest='file2', default=None, help='second .pkl file to use as images')
     parser.add_argument('-l2', dest='label2', default=None, help='second y labels file')
-    parser.add_argument('-split', dest='split', default=10, type=int, help='percent of data to use as test data')
+    parser.add_argument('-split', dest='split', default=20, type=int, help='percent of data to use as test data')
     parser.add_argument('-batch', dest='batch_size', default=100, type=int, help='NN batch size for stochastic gradient descent')
     parser.add_argument('-steps', dest='steps', default=5000, type=int, help='number of training epochs')
-    parser.add_argument('-buckets', dest='buckets', default=3, type=int, help='number of buckets to use')
-    parser.add_argument('-upper', dest='upper', default=-1.0, type=float, help='number of buckets to use')
-    parser.add_argument('-lower', dest='lower', default=1.0, type=float, help='number of buckets to use')
+    parser.add_argument('-buckets', dest='buckets', default=10, type=int, help='number of buckets to use')
+    parser.add_argument('-upper', dest='upper', default=3.0, type=float, help='number of buckets to use')
+    parser.add_argument('-lower', dest='lower', default=-3.0, type=float, help='number of buckets to use')
 
     FLAGS = parser.parse_args()
-    
-
-    #open file 1 from pickle
-    with open(FLAGS.file1) as f1:
-        images = pickle.load(f1) 
-    #may want more than one type of file say tech vs fin to help train
-    if FLAGS.file2 is not None:
-        with open(FLAGS.file2) as f2:
-            images2 = pickle.load(f2)
-        images = np.concatenate((np.array(images), np.array(images2)), axis=0)
-    else:
-        images = np.array(images)
+    #init ImageCreator Object
+    creator = ic.ImageCreator()
+    images, yvals = creator.parse_recreate_directory(file1)
+    #normalize the images to [0:1]
     images = images / 255.0
     #use parameter to set number of training vs test images
     perc_split = int((FLAGS.split/100.00) * len(images))
     #split train test
     train_xvals, test_xvals = images[:perc_split], images[perc_split:]
-    yvals = np.genfromtxt(FLAGS.label1, delimiter=',')
-    #if second file, format y labels for that too
-    if FLAGS.file2 is not None:
-        yvals2 = np.genfromtxt(FLAGS.label2, delimiter=',')
-        yvals = np.concatenate((yvals, yvals2), axis=0)
-    #yvals is a 
-    yvals = yvals * 100
+    #yvals = yvals * 100
     print(images.shape, yvals.shape)
     #yvals = yvals.reshape(-1,1)
     if FLAGS.buckets < 3:
