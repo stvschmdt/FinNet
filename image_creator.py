@@ -272,13 +272,18 @@ class ImageCreator():
 
     def sort_files(self,files):
         nums = []
+        img_arrs = []
         for f in files:
             if 'yvals' not in f:
+                img_arrs.append(f)
                 file_stem = f.split('.')[0]
                 ###split file_stem along the 'w', i.e. window1872 gives _,indo,1872, where 1872 is the number 
                 ###we want to sort. Soon start saving files as 1872 instead of window1872 to eliminate this
                 nums.append(int(file_stem.split('w')[2]))
-        z = [x for _,x in sorted(zip(nums,files))]
+            else:
+                yval_file = f
+        z = [x for _,x in sorted(zip(nums,img_arrs))]
+        z.append(yval_file)
         return z
 
     def parse_recreate_directory(self, directory, n_day='30d', d_out='2d'):
@@ -288,8 +293,6 @@ class ImageCreator():
         ###os.listdir does not read arrays in window order, so we must sort the files to 
         ###match the yvals
         files = self.sort_files(files)
-        #for f in files:
-            #print f
         x_ = []
         y_ = []
         for f in files:
