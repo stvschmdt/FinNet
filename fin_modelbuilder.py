@@ -62,37 +62,37 @@ class ModelBuilder(object):
         #print(input_layer.shape)
         
         # Convolutional Layer #1
-        conv1 = tf.layers.conv2d(inputs=tf.cast(input_layer, tf.float32),filters=42,kernel_size=[5, 5],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
+        conv1 = tf.layers.conv2d(inputs=tf.cast(input_layer, tf.float32),filters=100,kernel_size=[5, 5],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
         print(conv1.shape)
         # Pooling Layer #1
-        conv2 = tf.layers.conv2d(inputs=conv1,filters=84,kernel_size=[3, 3],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
+        conv2 = tf.layers.conv2d(inputs=conv1,filters=100,kernel_size=[3, 3],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
         # Convolutional Layer #2
         print(conv2.shape)
         pool1 = tf.layers.max_pooling2d(inputs=conv2, pool_size=[2, 2], strides=2)
         print('pool 1',pool1.shape)
         # Convolutional Layer #3
-        conv3 = tf.layers.conv2d(inputs=pool1,filters=128,kernel_size=[5, 5],strides=[1,1],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
-        print(conv3.shape)
-        conv4 = tf.layers.conv2d(inputs=conv3,filters=48,kernel_size=[3, 3],strides=[1,1],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
-        print(conv4.shape)
+        #conv3 = tf.layers.conv2d(inputs=pool1,filters=100,kernel_size=[5, 5],strides=[1,1],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
+        #print(conv3.shape)
+        #conv4 = tf.layers.conv2d(inputs=conv3,filters=100,kernel_size=[3, 3],strides=[1,1],padding="same",activation=tf.nn.elu, kernel_initializer=he_init)
+        #print(conv4.shape)
         # Pooling Layer #2
-        pool2 = tf.layers.average_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
-        print('pool 2',pool2.shape)
+        #pool2 = tf.layers.average_pooling2d(inputs=conv4, pool_size=[2, 2], strides=2)
+        #print('pool 2',pool2.shape)
         # dense layer
-        pool2_flat = tf.reshape(pool2, [-1, 25*25*48])
-        print(pool2_flat.shape)
-        dense1 = tf.layers.dense(inputs=pool2_flat, units=900, activation=tf.nn.elu, kernel_initializer=he_init)
+        pool2_flat = tf.reshape(pool1, [-1, 25*25*100])
+        print('pool 2 flat',pool2_flat.shape)
+        dense1 = tf.layers.dense(inputs=pool2_flat, units=500, activation=tf.nn.elu, kernel_initializer=he_init)
         print(dense1.shape)
-        dense2 = tf.layers.dense(inputs=dense1, units=400, activation=tf.nn.elu, kernel_initializer=he_init)
-        print(dense2.shape)
-        dropout1 = tf.layers.dropout(inputs=dense2, rate=0.6, training=mode == tf.estimator.ModeKeys.TRAIN)
+        #dense2 = tf.layers.dense(inputs=dense1, units=400, activation=tf.nn.elu, kernel_initializer=he_init)
+        #print(dense2.shape)
+        dropout1 = tf.layers.dropout(inputs=dense1, rate=0.5, training=mode == tf.estimator.ModeKeys.TRAIN)
         print(dropout1.shape)
         #dense3 = tf.layers.dense(inputs=dense2, units=200, activation=tf.nn.elu, kernel_initializer=he_init)
         #print(dense3.shape)
         #dropout = tf.layers.dropout(inputs=dense3, rate=0.8, training=mode == tf.estimator.ModeKeys.TRAIN)
         #print(dropout.shape)
         logits = tf.layers.dense(inputs=dropout1, units=self.outs)
-        print(logits.shape)
+        print('logits shape',logits.shape)
         predictions = { 'classes' : tf.argmax(input=logits, axis=1), 'probabilities' : tf.nn.softmax(logits, name='softmax_tensor')}
 
         if mode == tf.estimator.ModeKeys.PREDICT:
@@ -126,7 +126,8 @@ if __name__ == '__main__':
     FLAGS = parser.parse_args()
     #init ImageCreator Object
     creator = ic.ImageCreator()
-    images, yvals = creator.parse_recreate_directory(file1)
+    images, yvals = creator.parse_recreate_directory(FLAGS.file1)
+    print('images, labels sizes:', images.shape, yvals.shape)
     #normalize the images to [0:1]
     images = images / 255.0
     #use parameter to set number of training vs test images
