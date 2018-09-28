@@ -82,7 +82,7 @@ class ImageCreator():
         except ValueError:
             self.log.error("given data filename is not in format 'store/symbol_numd.csv'")
         n = str(n)+'d'
-        m = 'label'+str(m)+'d'
+        m = str(m)+'d'
         ### Switch os.system calls to subprocess calls
         try:
             dir_len = len(os.listdir('./imgs_as_arrays/'+symbol+'/'+n+'/'+m+'/'))
@@ -227,11 +227,11 @@ class ImageCreator():
         ### Will need shape in order to recreate image array
         if df is None:
             dataline = self.ohlc.iloc[arr[-1,0] + self.percent_label_days]
-            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/np.max(dataline[1:4])
+            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/arr[-1,4]
             return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
         else:
             dataline = df.iloc[arr[-1,0] + self.percent_label_days]
-            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/np.max(dataline[1:4])
+            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/arr[-1,4]
             return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
 
     def append_shape(self,img_arr,shape):
@@ -270,10 +270,26 @@ class ImageCreator():
         y = row[1]
         return x, y
 
+    def sort_files(self,files):
+        nums = []
+        for f in files:
+            if 'yvals' not in f:
+                file_stem = f.split('.')[0]
+                ###split file_stem along the 'w', i.e. window1872 gives _,indo,1872, where 1872 is the number 
+                ###we want to sort. Soon start saving files as 1872 instead of window1872 to eliminate this
+                nums.append(int(file_stem.split('w')[2]))
+        z = [x for _,x in sorted(zip(nums,files))]
+        return z
+
     def parse_recreate_directory(self, directory, n_day='30d', d_out='2d'):
         #loop through directory to store all in np array tensor
 	full_dir = directory + '/' + n_day +'/' + d_out + '/'
         files = os.listdir(full_dir)
+        ###os.listdir does not read arrays in window order, so we must sort the files to 
+        ###match the yvals
+        files = self.sort_files(files)
+        #for f in files:
+            #print f
         x_ = []
         y_ = []
         for f in files:
@@ -310,15 +326,16 @@ class ImageCreator():
             arr = self.convert_dataframe_to_np_array(df=i)
             arr = self.change_date(arr,count)
             self.log.info("creating image...")
-            img_arr = self.create_image_from_np_array(arr)
-            img_arr = self.delete_alpha(img_arr)
+            img_arr = np.zeros((1,1,1))
+            #img_arr = self.create_image_from_np_array(arr)
+            #img_arr = self.delete_alpha(img_arr)
             shape,label = self.get_labels(arr,img_arr)
             labels = np.append(labels,label)
             arr = None
-            img_arr = self.flatten_image(img_arr)
-            img_arr = self.append_shape(img_arr,shape)
+            #img_arr = self.flatten_image(img_arr)
+            #img_arr = self.append_shape(img_arr,shape)
             self.log.info("saving array...")
-            write_file = self.save_array(img_arr,count)
+            #write_file = self.save_array(img_arr,count)
             img_arr = None
             #self.recreate_image(write_file,imshow=True)
         if self.label_dir == None:
@@ -329,12 +346,11 @@ class ImageCreator():
 
 
 if __name__ == '__main__':
-    check_driver = 1
+    check_driver = 0
     days = [30,60,90]
     percent_label_days = [1,2,5]
     label_arr = np.asarray([])
     if check_driver == 1:
-        '''
         for filename in os.listdir('store/'):
             str_filename = filename
             t0 = time.time()
@@ -346,49 +362,12 @@ if __name__ == '__main__':
         '''
         ic = ImageCreator('store/ba_5953d.csv', n=90,m=1,plot_dpi = 25)
         ic.driver()
-
-    else:
-        pass
         '''
-        ic = ImageCreator('store/nvda_100d.csv',n = 90)
-        # Default is 30 day window
-        generator = ic.rolling_window()
-        count = 0
-        for i in generator:
-            #self.log.info("rolling window num:{}".format(count))
-            count += 1
-            arr = ic.convert_dataframe_to_np_array(df=i)
-            arr = ic.change_date(arr,count)
-            #self.log.info("creating/saving image...")
-            ic.create_image_from_np_array(arr,'temp_im')
-            #self.log.info("reading image...")
-            img_arr = ic.read_image_to_np_array('temp_im')
-            img_arr = ic.delete_alpha(img_arr)
-            image = Image.fromarray(img_arr,'RGB')
-            image.show()
-            raw_input("First Image")
-            arr_shape = img_arr.shape
-            #labels = ic.get_labels(arr,img_arr)
-            img_arr = ic.flatten_image(img_arr)
-            img_arr = list(img_arr)
-            print "len1",len(img_arr)
-            img_arr.append(arr_shape)
-            print "len2",len(img_arr)
-            #img_arr = np.delete(img_arr,[len(img_arr)-3,len(img_arr)-2,len(img_arr)-1])
+    else:
+        ic = ImageCreator('store/ba_5953d.csv', n=90,m=1,plot_dpi = 25)
+        x,y = ic.parse_recreate_directory('./imgs_as_arrays/nflx_5953d')
+        print x.shape
+        print y.shape
 
-            img_arr = np.asarray(img_arr[0:len(img_arr)-1])
-            img_arr1 = np.reshape(img_arr,arr_shape)
-            image = Image.fromarray(img_arr1,'RGB')
-            image.show()
-            raw_input("Second Image")
-            #img_arr = ic.append_labels(img_arr,labels)
-            #self.log.info("saving array...")
-            #np.save('recreate_test',img_arr)
-            #ic.recreate_image('recreate_test.npy',img_arr)
-            raw_input("Press enter to continue")
-
-            ###Check image after deleting alpha array (need to adjust for flattened image)
-            #img = Image.fromarray(arr,'RGB')
-            '''
             
         
