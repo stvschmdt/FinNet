@@ -437,6 +437,5 @@ if __name__ == '__main__':
                     ic = ImageCreator('store/'+str_filename, n=day,m=label_day,plot_dpi = 25)
                     ic.driver()
                     
-        '''
     else:
         pass
