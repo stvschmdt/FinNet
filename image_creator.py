@@ -1,4 +1,5 @@
 import pandas as pd
+import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
 import mpl_finance as fin
@@ -22,6 +23,7 @@ class ImageCreator():
 	    self.filename = filename
 	    self.ndays = n
 	    self.log = logger.Logging()
+            self.log.info('running for symbol: {}'.format(filename))
 	    self.log.info('running for days: {}'.format(n))
             self.log.info('label days: {}'.format(m))
 	    self.data = self.load_ohlc_csv()
@@ -80,6 +82,7 @@ class ImageCreator():
             _,symbol = filename.split("/")
             symbol,_ = symbol.split(".")
         except ValueError:
+            
             self.log.error("given data filename is not in format 'store/symbol_numd.csv'")
         n = str(n)+'d'
         m = str(m)+'d'
@@ -130,83 +133,70 @@ class ImageCreator():
             return df.values
         
 
-    def rolling_window(self, df=None):
-        ### Rolling window is a generator function that only returns one window at a time
-        ### Passes window into create_image_from_np_array function
-        ### Window is snapshot of ndays moving forward
-        if df is None:
-            num_iter = self.get_num_windows(self.ndays)
-            if num_iter <= 0:
-	        self.log.error('price on label day {}'.format(self.ndays+self.percent_label_days))
-                self.log.error('is past last day in data {}'.format(len(self.load_ohlc_csv()))) 
-            else:
-                for i in range(num_iter):
-                    yield self.n_day(i,self.ndays+i)
-        else:
-            num_iter = self.get_num_windows(self.ndays,df=df)
-            if num_iter <= 0:
-	        self.log.error('price on label day'.format(self.ndays+self.percent_label_days-1))
-                self.log.error('is past last day in data'.format(len(load_ohlc_csv(self.filename))+1)) 
-            else:
-                for i in range(num_iter):
-                    yield self.n_day(i,self.ndays+i,df=df)
-                    
     def change_date(self,arr,count):
         ### Changes date string into index, adds count so that indices will be (for n = 30):
         ### 0-29 for window 0; 1-30 for window 1; 2-31 for window 2; etc
         for j in range(len(arr)):
             arr[j][0] = j - 1 + count
+        print arr
         return arr
 
-    def create_image_from_np_array(self,arr, n=None, plot_dpi = None):
-        if plot_dpi == None:
-            plot_dpi = self.plot_dpi
-        if n == None:
-            n = self.ndays
-        #create candlestick chart with matplotlib
-        fig = plt.figure(figsize=(2,2),dpi=plot_dpi) #figsize can be edited to make bigger or smaller
-        #ax1 = plt.gca()
-        #x limits are the low and high indices, day 0 to day nday for window 1
-        # y limits are the min and max of the ohlc data
-        plt.xlim((arr[0,0],n+arr[0,0]))
-        plt.ylim(np.min(arr[:,1:5]),np.max(arr[:,1:5]))
-        #turn off axes around the plot
-        plt.axis('off')
-        plt.tight_layout()
-        candlestick_ohlc(fig.axes[0],arr,colorup='#77d879', colordown='#db3f3f')
-        ### dpi can be set as a parameter in class initiation, sets resolution
-        #convert matplotlib figure to 4D numpy array (RGBA channels). Alpha channel (opacity) should be removed.
-        #No need for writing or reading an image.
-
-        #http://www.icare.univ-lille1.fr/wiki/index.php/How_to_convert_a_matplotlib_figure_to_a_numpy_array_or_a_PIL_image
-        # draw the renderer
-        fig.canvas.draw()
-        #print fig.axes[0].get_children()
-        # ax.get_children may allow optimization: see:
-        #https://bastibe.de/2013-05-30-speeding-up-matplotlib.html
-
-        # Get the RGBA Buffer from the figure
-        w,h = fig.canvas.get_width_height()
-        buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
-        buf.shape = (w,h,4)
-
-        #canvas.tostring_argb give pixmap in ARGB mode. Roll the alpha channel to have it in RGBA mode
-        buf = np.roll(buf,3,axis = 2)
-        plt.close()
-	return buf
-    
-    def get_num_windows(self,n,df=None):
+    def get_num_windows(self,n=None,df=None):
         ### When appending label, cannot put label for windows where index is out of range
         ###if n = 90, cannot append 2 days out label for window 9-98 because index 100 is
         ### out of range for data frame, so we subtract self.percent_label_days and add 1 to number of windows
+        if n == None:
+            n = self.ndays
         if df is None:
 	    return len(self.ohlc) - n - self.percent_label_days + 1
         else:
             return len(df) - n - self.percent_label_days + 1
 
-    def read_image_to_np_array(self,im_filename):
-        ### Reads saved image and converts to a numpy array
-        return np.asarray(Image.open(im_filename+'.png'))
+
+    def create_image_from_numpy_array(self,arr_full,num_windows,plot_dpi = None, n=None):
+        if n == None:
+            n = self.ndays
+        if plot_dpi == None:
+            plot_dpi = self.plot_dpi
+        fig_alldata = plt.figure(figsize=(2,2),dpi=25) 
+        ax_alldata = plt.gca()
+        plt.xlim((0,num_windows))
+        plt.ylim(np.min(arr_full[:,1:5]),np.max(arr_full[:,1:5]))
+        candle_stick = candlestick_ohlc(ax_alldata,arr_full[ic.ndays:],colorup='#77d879', colordown='#db3f3f')
+        lines = candle_stick[0]
+        patches = candle_stick[1]
+
+        plt.clf()
+        plt.cla()
+        plt.close()
+        return lines, patches
+
+
+    def create_figure_instance(self,arr_full,n=None,plot_dpi = None):
+        if n == None:
+            n = self.ndays
+        if plot_dpi == None:
+            plot_dpi = self.plot_dpi
+        fig_windows = plt.figure(figsize=(2,2),dpi = plot_dpi)
+        ax_windows = plt.gca()
+        plt.xlim((-0.2,ic.ndays-0.8))
+        plt.ylim(np.min(arr_full[:ic.ndays,1:5]),np.max(arr_full[:ic.ndays,1:5]))
+        plt.axis('off')
+        plt.tight_layout()
+        plt.ion()
+        # next data needs axes to plot to. get data from this
+        ### set first window
+        candle_stick = candlestick_ohlc(ax_windows,arr_full[:ic.ndays+1],colorup='#77d879', colordown='#db3f3f')
+        fig_windows.canvas.draw()
+        ### create first image array below
+        # Get the RGBA Buffer from the figure
+        w,h = fig_windows.canvas.get_width_height()
+        buf = np.fromstring(fig_windows.canvas.tostring_argb(), dtype=np.uint8)
+        buf.shape = (w,h,4)
+
+        #canvas.tostring_argb give pixmap in ARGB mode. Roll the alpha channel to have it in RGBA mode
+        buf = np.roll(buf,3,axis = 2)
+        return candle_stick,fig_windows,ax_windows,buf
 
     def delete_alpha(self,arr):
         ### Remove opacity channel from image array
@@ -226,13 +216,15 @@ class ImageCreator():
         ### This is because the windowed frame doesn't contain the future price
         ### Will need shape in order to recreate image array
         if df is None:
-            dataline = self.ohlc.iloc[arr[-1,0] + self.percent_label_days]
-            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/arr[-1,4]
-            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
+            datalines = self.ohlc.iloc[arr[-1,0]+1 : arr[-1,0] + self.percent_label_days+1,:]
+            datalines = self.convert_dataframe_to_np_array(df=datalines)
+            percent_diff = (np.max(datalines[:,1:5]) - arr[-1,4])/arr[-1,4]
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
         else:
-            dataline = df.iloc[arr[-1,0] + self.percent_label_days]
-            percent_diff = (np.max(dataline[1:4]) - arr[-1,4])/arr[-1,4]
-            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
+            datalines = df.iloc[arr[-1,0]+1:arr[-1,0] + self.percent_label_days+1]
+            datalines = self.convert_dataframe_to_np_array(df=datalines)
+            percent_diff = (np.max(datalines[:,1:5]) - arr[-1,4])/arr[-1,4]
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
 
     def append_shape(self,img_arr,shape):
         ### Add label and shape to the end of flattened image array
@@ -240,7 +232,7 @@ class ImageCreator():
 
     def save_array(self,img_arr,count):
         ### create save path
-        write_file = self.write_dir + 'window' + str(count)
+        write_file = self.write_dir + str(count)
         ### np.save creates a binary file that saves space over saving numbers; float16 saves space
         np.save(write_file,img_arr.astype('uint8'))
         ### return write file so image can be recreated
@@ -248,8 +240,10 @@ class ImageCreator():
 
     def recreate_image(self,write_file,imshow=False):
         ### Recreate image from numpy file
-        img_arr = np.load(write_file)
-
+        try:
+            img_arr = np.load(write_file)
+        except:
+            img_arr = np.load(write_file + '.npy')
         ### peel off labels and remove from image array
         shape = (int(img_arr[-3]),int(img_arr[-2]),int(img_arr[-1])) 
         img_arr = np.asarray(img_arr[:len(img_arr)-3].astype('uint8'))
@@ -262,6 +256,20 @@ class ImageCreator():
             raw_input("Recreated image")
         return img_arr
 
+    def sort_files(self,files):
+        nums = []
+        img_arrs = []
+        for f in files:
+            if 'yvals' not in f:
+                img_arrs.append(f)
+                file_stem = f.split('.')[0]
+                nums.append(int(file_stem))
+            else:
+                yval_file = f
+        z = [x for _,x in sorted(zip(nums,img_arrs))]
+        z.append(yval_file)
+        return z
+
     def parse_recreate_image(self, filename, imshow = False):
         #in case we dont have write_file in memory - standalone function
         filename = filename.split('.')[0]
@@ -270,37 +278,20 @@ class ImageCreator():
         y = row[1]
         return x, y
 
-    def sort_files(self,files):
-        nums = []
-        img_arrs = []
-        for f in files:
-            if 'yvals' not in f:
-                img_arrs.append(f)
-                file_stem = f.split('.')[0]
-                ###split file_stem along the 'w', i.e. window1872 gives _,indo,1872, where 1872 is the number 
-                ###we want to sort. Soon start saving files as 1872 instead of window1872 to eliminate this
-                nums.append(int(file_stem.split('w')[2]))
-            else:
-                yval_file = f
-        z = [x for _,x in sorted(zip(nums,img_arrs))]
-        z.append(yval_file)
-        return z
-
-    def parse_recreate_directory(self, directory, n_day='30d', d_out='2d'):
+    def parse_recreate_directory(self, directory, n_day = '30d', d_out = '2d'):
         #loop through directory to store all in np array tensor
-	full_dir = directory + '/' + n_day +'/' + d_out + '/'
+        full_dir = directory + '/' + n_day + '/' + d_out + '/'
         files = os.listdir(full_dir)
-        ###os.listdir does not read arrays in window order, so we must sort the files to 
-        ###match the yvals
+        ###os.listdir does not read arrays in window order, so we must sort them
         files = self.sort_files(files)
         x_ = []
         y_ = []
         for f in files:
-	    if 'yvals' not in f:
-		row = self.recreate_image(full_dir + f)
-		x_.append(row)
-	    else:
-		y_ = np.load(full_dir + f)
+            if 'yvals' not in f:
+                row = self.recreate_image(full_dir + f)
+                x_.append(row)
+            else:
+                y_ = np.load(full_dir + f)
         #return as np arrays ready to go
         x_ = np.array(x_)
         y_ = np.array(y_)
@@ -310,67 +301,142 @@ class ImageCreator():
         print self.label_dir + 'yvals'
         np.save(self.label_dir+'yvals',labels)
 
-    def __del__(self):
-        self.log.info("Object deleted")
+    def update_current_data(self,candle_stick,newlinedata,newlinecolor,newpatchdata,count):
+        if count >= self.ndays:
+            count = count % self.ndays
+        ### Set new line data
+        newlinedata = np.transpose(newlinedata)
+        candle_stick[0][count-1].set_data(newlinedata)
+        candle_stick[0][count-1].set_color(newlinecolor)
+        ### set new patch data
+        candle_stick[1][count-1].set_x(newpatchdata[0])
+        candle_stick[1][count-1].set_y(newpatchdata[1])
+        candle_stick[1][count-1].set_width(newpatchdata[2])
+        candle_stick[1][count-1].set_height(newpatchdata[3])
+        candle_stick[1][count-1].set_color(newpatchdata[4])
+        #candle_stick[0] = np.roll(candle_stick[0],self.ndays - 1)
+        #candle_stick[1] = np.roll(candle_stick[1],self.ndays - 1)
+        return candle_stick
 
-    #do all the things tested in the 'if' statement below
+    def get_new_plot_data(self,lines,patches,count):
+        newline = lines[count].get_xydata()
+        newlinecolor = lines[count].get_color()
+        newpatch_xloc,newpatch_yloc = patches[count].get_xy() 
+        newpatch_width = patches[count].get_width()
+        newpatch_height = patches[count].get_height()
+        newpatch_color = patches[count].get_facecolor()
+        newpatch = [newpatch_xloc, newpatch_yloc, newpatch_width, newpatch_height,newpatch_color]
+        return newline, newlinecolor, newpatch
+
+
+    def reorder_current_data(self,candle_stick):
+        current_lines = candle_stick[0]
+        current_patches = candle_stick[1]
+        return np.roll(current_lines,len(current_lines) - 1), np.roll(current_patches, len(current_patches) -1)
+
+    def redraw_image(self,candle_stick,fig,ax,count,arr):
+        for line in candle_stick[0]:
+            ax.draw_artist(line)
+        for patch in candle_stick[1]:
+            ax.draw_artist(patch)
+        #fig.canvas.draw_idle()
+        plt.xlim((count-0.2,count+self.ndays-0.8))
+        plt.ylim(np.min(arr[:,1:5]),np.max(arr[:,1:5]))
+        #plt.axis('off')
+        #plt.tight_layout()
+        #fig.canvas.update()
+        fig.canvas.draw_idle()
+        fig.canvas.flush_events()
+        #fig.canvas.draw()
+        # Get the RGBA Buffer from the figure
+        w,h = fig.canvas.get_width_height()
+        buf = np.fromstring(fig.canvas.tostring_argb(), dtype=np.uint8)
+        buf.shape = (w,h,4)
+
+        #canvas.tostring_argb give pixmap in ARGB mode. Roll the alpha channel to have it in RGBA mode
+        buf = np.roll(buf,3,axis = 2)
+        return buf
+
+
+    def get_current_window(self,arr,count):
+        return arr[count:count+self.ndays+1]
+
+
     def driver(self):
-        ### temporary path for the images to be saved at. There's probably a better way to do this
+        arr_full = self.convert_dataframe_to_np_array()
+        arr_full = self.change_date(arr_full,0)
+        #lines,patches = ic.create_image_from_np_array(arr)
+        num_windows = self.get_num_windows()
+        self.log.info('creating figure from full dataframe...')
+        lines, patches = self.create_image_from_numpy_array(arr_full,num_windows)
+        ### figure for windows of nday data
+        self.log.info('creating first windowed figure...')
+        candle_stick,fig_windows,ax_windows,img_arr = self.create_figure_instance(arr_full)
+        img_arr = self.delete_alpha(img_arr)
+        ### Check this
+        shape, label = self.get_labels(arr_full[0:self.ndays+1],img_arr)
+        labels = np.asarray([label])
+        img_arr = self.flatten_image(img_arr)
+        img_arr = self.append_shape(img_arr,shape)
         if self.write_dir == None:
-            generator = []
+            ### skip directory
+            self.log.info('skipping directory...')
+            num_windows = 1
         else:
-            generator = ic.rolling_window()
-        count = 0
-        labels = np.asarray([])
-        ### generator function only returns one window at a time, potentially speeding image making
-        for i in generator:
-            self.log.info("rolling window num:{}".format(count))
-            count += 1
-            arr = self.convert_dataframe_to_np_array(df=i)
-            arr = self.change_date(arr,count)
-            self.log.info("creating image...")
-            img_arr = np.zeros((1,1,1))
-            #img_arr = self.create_image_from_np_array(arr)
-            #img_arr = self.delete_alpha(img_arr)
-            shape,label = self.get_labels(arr,img_arr)
+            self.log.info('saving array...')
+            write_file = self.save_array(img_arr,0)
+
+
+        for i in range(1,num_windows):
+            self.log.info("window {} ".format(i))
+            arr = ic.get_current_window(arr_full,i)
+            self.log.info('getting next plot data...')
+            newlinedata, newlinecolor, newpatchdata = ic.get_new_plot_data(lines,patches,i)
+            self.log.info('updating line data...')
+            candle_stick = ic.update_current_data(candle_stick,newlinedata,newlinecolor,newpatchdata,i)
+            self.log.info('redrawing image...')
+            img_arr = ic.redraw_image(candle_stick,fig_windows,ax_windows,i,arr)
+
+            img_arr = self.delete_alpha(img_arr)
+            shape, label = self.get_labels(arr,img_arr)
             labels = np.append(labels,label)
-            arr = None
-            #img_arr = self.flatten_image(img_arr)
-            #img_arr = self.append_shape(img_arr,shape)
+            img_arr = self.flatten_image(img_arr)
+            img_arr = self.append_shape(img_arr,shape)
             self.log.info("saving array...")
-            #write_file = self.save_array(img_arr,count)
-            img_arr = None
-            #self.recreate_image(write_file,imshow=True)
+            write_file = self.save_array(img_arr,i)
+            #self.recreate_image(write_file,imshow = True)
         if self.label_dir == None:
             pass
         else:
             self.save_label(labels)
+        ### Close plot at end
+        plt.close()
 
 
+    
+
+    def __del__(self):
+        self.log.info("Object deleted")
 
 if __name__ == '__main__':
-    check_driver = 0
+    check_driver = 1
     days = [30,60,90]
     percent_label_days = [1,2,5]
     label_arr = np.asarray([])
     if check_driver == 1:
+        '''
+        for day in days:
+            for label_day in percent_label_days:
+                ic = ImageCreator('store/amd_5953d.csv', n=day,m=label_day,plot_dpi = 25)
+                ic.driver()
+           '''     
         for filename in os.listdir('store/'):
             str_filename = filename
-            t0 = time.time()
             for day in days:
                 for label_day in percent_label_days:
                     ic = ImageCreator('store/'+str_filename, n=day,m=label_day,plot_dpi = 25)
                     ic.driver()
-                    del ic
-        '''
-        ic = ImageCreator('store/ba_5953d.csv', n=90,m=1,plot_dpi = 25)
-        ic.driver()
+                    
         '''
     else:
-        ic = ImageCreator('store/ba_5953d.csv', n=90,m=1,plot_dpi = 25)
-        x,y = ic.parse_recreate_directory('./imgs_as_arrays/nflx_5953d')
-        print x.shape
-        print y.shape
-
-            
-        
+        pass
