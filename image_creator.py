@@ -39,25 +39,66 @@ class ImageCreator():
         
         print "Sample driver code"
         print (''' 
-        generator = ic.rolling_window(); create a generator object containing ndays
-        count = 0; set counter for filenames
-        for i in generator:; loop through generator, each i is nday window
-            count += 1
-            arr = self.convert_dataframe_to_np_array(df=i)
-            arr = self.change_date(arr,count); changes date string to 0-n integers
-            img_arr = self.create_image_from_np_array(arr); creates image from window, saves to temp_path
-            Note that this is handled in functions, but all pixel values must be dtype = uint8 to ensure images
-            are not corrupted
-            
-            img_arr = self.delete_alpha(img_arr); removes alpha channel of image
-            labels = self.get_labels(arr,img_arr); gets labels from data, labels are image shape and percent change m days out
-            img_arr = self.flatten_image(img_arr); flattens array to 1D
-            img_arr = self.append_labels(img_arr,labels); appends labels to 1D array
-            write_file = self.save_array(img_arr,count); saves array to below:
+
+    def driver(self):
+        arr_full = self.convert_dataframe_to_np_array()
+        arr_full = self.change_date(arr_full,0)
+        #lines,patches = ic.create_image_from_np_array(arr)
+        num_windows = self.get_num_windows()
+        self.log.info('creating figure from full dataframe...')
+        lines, patches = self.create_image_from_numpy_array(arr_full,num_windows)
+        ### figure for windows of nday data
+        self.log.info('creating first windowed figure...')
+        candle_stick,fig_windows,ax_windows,img_arr = self.create_figure_instance(arr_full)
+        img_arr = self.delete_alpha(img_arr)
+        ### Check this
+        shape, label = self.get_labels(arr_full[0:self.ndays],img_arr)
+        labels = np.asarray([label])
+        img_arr = self.flatten_image(img_arr)
+        img_arr = self.append_shape(img_arr,shape)
+        if self.write_dir == None:
+            ### skip directory
+            self.log.info('skipping directory...')
+            num_windows = 1
+        else:
+            self.log.info('saving array...')
+            write_file = self.save_array(img_arr,0)
+
+
+        for i in range(1,num_windows):
+            self.log.info("window {} ".format(i))
+            arr = ic.get_current_window(arr_full,i)
+            self.log.info('getting next plot data...')
+            newlinedata, newlinecolor, newpatchdata = ic.get_new_plot_data(lines,patches,i)
+            self.log.info('updating line data...')
+            candle_stick = ic.update_current_data(candle_stick,newlinedata,newlinecolor,newpatchdata,i)
+            self.log.info('redrawing image...')
+            img_arr = ic.redraw_image(candle_stick,fig_windows,ax_windows,i,arr)
+
+            img_arr = self.delete_alpha(img_arr)
+            shape, label = self.get_labels(arr,img_arr)
+            labels = np.append(labels,label)
+            img_arr = self.flatten_image(img_arr)
+            img_arr = self.append_shape(img_arr,shape)
+
+            self.log.info("saving array...")
+            write_file = self.save_array(img_arr,i)
             'write_file = self.write_dir + window(count)_label(self.percent_label_days)d'
             where self.write_dir is
             'self.write_dir = ./imgs_as_arrays/(symbol)/(n)/'
             and items wrapped in () are variables in code
+
+            #self.recreate_image(write_file,imshow = True)
+
+        if self.label_dir == None:
+            label_dir set by write_dir: if write dir is full then label_dir will pass over saving
+            pass
+        else:
+            self.log.info('saving yvals...')
+            self.save_label(labels)
+        ### Close plot at end
+        plt.close()
+
 
             #self.recreate_image(write_file,imshow=True); method to recreate image from array, imshow=True displays image during runtime
             ''')
@@ -86,7 +127,6 @@ class ImageCreator():
             self.log.error("given data filename is not in format 'store/symbol_numd.csv'")
         n = str(n)+'d'
         m = str(m)+'d'
-        ### Switch os.system calls to subprocess calls
         try:
             dir_len = len(os.listdir('./imgs_as_arrays/'+symbol+'/'+n+'/'+m+'/'))
             if dir_len < self.get_num_windows(self.ndays):
@@ -137,8 +177,7 @@ class ImageCreator():
         ### Changes date string into index, adds count so that indices will be (for n = 30):
         ### 0-29 for window 0; 1-30 for window 1; 2-31 for window 2; etc
         for j in range(len(arr)):
-            arr[j][0] = j - 1 + count
-        print arr
+            arr[j][0] = j  + count
         return arr
 
     def get_num_windows(self,n=None,df=None):
@@ -162,7 +201,7 @@ class ImageCreator():
         ax_alldata = plt.gca()
         plt.xlim((0,num_windows))
         plt.ylim(np.min(arr_full[:,1:5]),np.max(arr_full[:,1:5]))
-        candle_stick = candlestick_ohlc(ax_alldata,arr_full[ic.ndays:],colorup='#77d879', colordown='#db3f3f')
+        candle_stick = candlestick_ohlc(ax_alldata,arr_full[self.ndays:],colorup='#77d879', colordown='#db3f3f')
         lines = candle_stick[0]
         patches = candle_stick[1]
 
@@ -180,13 +219,13 @@ class ImageCreator():
         fig_windows = plt.figure(figsize=(2,2),dpi = plot_dpi)
         ax_windows = plt.gca()
         plt.xlim((-0.2,ic.ndays-0.8))
-        plt.ylim(np.min(arr_full[:ic.ndays,1:5]),np.max(arr_full[:ic.ndays,1:5]))
+        plt.ylim(np.min(arr_full[:n,1:5]),np.max(arr_full[:n,1:5]))
         plt.axis('off')
         plt.tight_layout()
         plt.ion()
         # next data needs axes to plot to. get data from this
         ### set first window
-        candle_stick = candlestick_ohlc(ax_windows,arr_full[:ic.ndays+1],colorup='#77d879', colordown='#db3f3f')
+        candle_stick = candlestick_ohlc(ax_windows,arr_full[:n],colorup='#77d879', colordown='#db3f3f')
         fig_windows.canvas.draw()
         ### create first image array below
         # Get the RGBA Buffer from the figure
@@ -210,21 +249,28 @@ class ImageCreator():
         ### with np.reshape()
         return arr.flatten('C')
 
-    def get_labels(self,arr,img,df = None):
+    def get_labels(self,arr,img,df = None,use_max = True):
         ### Calculate percentage change +m days after window
         ### Note that the entire data frame must be passed to df rather than a windowed data frame
         ### This is because the windowed frame doesn't contain the future price
         ### Will need shape in order to recreate image array
+        if use_max:
+            def return_maxmin(datalines):
+                return np.max(datalines)
+        else:
+            def return_maxmin(datalines):
+                return np.min(datalines)
+
         if df is None:
             datalines = self.ohlc.iloc[arr[-1,0]+1 : arr[-1,0] + self.percent_label_days+1,:]
             datalines = self.convert_dataframe_to_np_array(df=datalines)
-            percent_diff = (np.max(datalines[:,1:5]) - arr[-1,4])/arr[-1,4]
-            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
+            percent_diff = (return_maxmin(datalines[:,1:5]) - arr[-1,4])/arr[-1,4]
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
         else:
             datalines = df.iloc[arr[-1,0]+1:arr[-1,0] + self.percent_label_days+1]
             datalines = self.convert_dataframe_to_np_array(df=datalines)
-            percent_diff = (np.max(datalines[:,1:5]) - arr[-1,4])/arr[-1,4]
-            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(100*percent_diff)
+            percent_diff = (return_maxmin(datalines[:,1:5]) - arr[-1,4])/arr[-1,4]
+            return [img.shape[0],img.shape[1],img.shape[2]],np.float16(percent_diff)
 
     def append_shape(self,img_arr,shape):
         ### Add label and shape to the end of flattened image array
@@ -298,7 +344,6 @@ class ImageCreator():
         return x_, y_
 
     def save_label(self,labels):
-        print self.label_dir + 'yvals'
         np.save(self.label_dir+'yvals',labels)
 
     def update_current_data(self,candle_stick,newlinedata,newlinecolor,newpatchdata,count):
@@ -359,7 +404,7 @@ class ImageCreator():
 
 
     def get_current_window(self,arr,count):
-        return arr[count:count+self.ndays+1]
+        return arr[count:count+self.ndays]
 
 
     def driver(self):
@@ -374,7 +419,7 @@ class ImageCreator():
         candle_stick,fig_windows,ax_windows,img_arr = self.create_figure_instance(arr_full)
         img_arr = self.delete_alpha(img_arr)
         ### Check this
-        shape, label = self.get_labels(arr_full[0:self.ndays+1],img_arr)
+        shape, label = self.get_labels(arr_full[0:self.ndays],img_arr)
         labels = np.asarray([label])
         img_arr = self.flatten_image(img_arr)
         img_arr = self.append_shape(img_arr,shape)
@@ -408,6 +453,7 @@ class ImageCreator():
         if self.label_dir == None:
             pass
         else:
+            self.log.info('saving yvals...')
             self.save_label(labels)
         ### Close plot at end
         plt.close()
@@ -424,18 +470,17 @@ if __name__ == '__main__':
     percent_label_days = [1,2,5]
     label_arr = np.asarray([])
     if check_driver == 1:
-        '''
-        for day in days:
-            for label_day in percent_label_days:
-                ic = ImageCreator('store/amd_5953d.csv', n=day,m=label_day,plot_dpi = 25)
-                ic.driver()
-           '''     
+        for d in days:
+            ic = ImageCreator('store/amd_100d.csv', n=d,m=2,plot_dpi = 25)
+            ic.driver()
+        
+        '''     
         for filename in os.listdir('store/'):
             str_filename = filename
             for day in days:
                 for label_day in percent_label_days:
                     ic = ImageCreator('store/'+str_filename, n=day,m=label_day,plot_dpi = 25)
                     ic.driver()
-                    
+        '''            
     else:
         pass
