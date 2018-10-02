@@ -14,10 +14,38 @@ import time
 #format of API renamed from data_collector.py
 #cols = ['low', 'open', 'high', 'close', 'volume', 'adj_close', 'split_coeff', 'dividend']
 #class to read in csv from store plus operations
-### Add symbol directory to imags_as_arrays, i.e. /imgs_as_arrays/amzn_5953d/30d, or 90d
+'''
+ImageCreator: 
+    reads in csv, ndays (window size), m days out (days out from last window to search for max price, and plot_dpi (sets resolution)
+    csv is set to pandas dataframe
+    check_dir searches through directories, to create write directory if needed and set write_dir variable.
+    If length of data frame is equal to or greater than the length of the chosen directory, IC will skip the directory
+    pandas data frame is turned into numpy array
+    numpy array is used to generate all needed candle stick objects, patches (rectangles) and lines
+    numpy array generates first window, from data line 0:nday, i.e. 0 to 29 inclusive for nday = 30
+    the candle stick objects from the first window are gathered in the variables 'patches' and 'lines'
+    the first plot is turned into pixel data and saved
+    the loop begins by finding the next candle stick objects and getting the x,y, width* and height*, and color
+    * = patches only
+    it then replaces the object going out of the window with the new plot data, i.e. for n = 30 the first loop
+    will shift the object data, i.e. for lines, (Line1 2D, Line2 2D,..., Line29 2D) to (Line30 2D, Line 1 2D, ..., Line 29 2D).
+    The order of the objects is irrelevant, given that the position on the graph is set by x and y. It continues updating
+    plot data in this fashion, gathering the image pixel data, and saving.
+    
+    Throughout the loop, labels are gathered from the data 'end of window'+1:mdays+'end of window', inclusive. They are appended to 
+    a separate array, and then saved to the write_dir as yvals.npy.
+
+    All files saved are numpy binary files, .npy, and must be read back in by numpy. 
+
+    The parse recreate directory function recreates all of the images and corresponding yvals for a given directory.
+    Note that to recreate the image, the dtype of the numpy array must be uint8, which is automated in the function recreate_image.
+
+    '''
 class ImageCreator():
-    def __init__(self, filename=None, n=30, m = 2,plot_dpi = 50):
+    def __init__(self, filename=None, n=30, m = 2,plot_dpi = 25,fig_dim = 2,use_max = True):
         if filename != None:
+            self.use_max = use_max
+            self.fig_dim = fig_dim #sets the figsize, figsize*dpi gives pixel dimensions
             self.plot_dpi = plot_dpi #sets resolution of figure, figsize*dpi gives pixel dimensions
             self.percent_label_days = m
 	    self.filename = filename
@@ -31,6 +59,8 @@ class ImageCreator():
             self.write_dir = self.check_dir()
             self.label_dir = self.write_dir
         else:
+            self.use_max = use_max
+            self.fig_dim = fig_dim #sets the figsize, figsize*dpi gives pixel dimensions
             self.plot_dpi = plot_dpi
             self.percent_label_days = m
             self.filename = filename
@@ -249,17 +279,21 @@ class ImageCreator():
         ### with np.reshape()
         return arr.flatten('C')
 
-    def get_labels(self,arr,img,df = None,use_max = True):
+    def get_labels(self,arr,img,df = None,use_max = None):
         ### Calculate percentage change +m days after window
         ### Note that the entire data frame must be passed to df rather than a windowed data frame
         ### This is because the windowed frame doesn't contain the future price
         ### Will need shape in order to recreate image array
+        if use_max == None:
+            use_max = self.use_max
+
         if use_max:
             def return_maxmin(datalines):
                 return np.max(datalines)
         else:
             def return_maxmin(datalines):
                 return np.min(datalines)
+
 
         if df is None:
             datalines = self.ohlc.iloc[arr[-1,0]+1 : arr[-1,0] + self.percent_label_days+1,:]
@@ -471,7 +505,7 @@ if __name__ == '__main__':
     label_arr = np.asarray([])
     if check_driver == 1:
         for d in days:
-            ic = ImageCreator('store/amd_100d.csv', n=d,m=2,plot_dpi = 25)
+            ic = ImageCreator('store/amd_100d.csv', n=d,m=2,plot_dpi = 25,use_max = False)
             ic.driver()
         
         '''     
