@@ -1,0 +1,7 @@
+symbols:spy_5953d,avgo_5953d,mu_5953d,lrcx_5953d,qcom_5953d,nvda_5953d,amd_5953d,intc_5953d,ko_5953d,amzn_5953d,aapl_5953d,ba_5953d,psx_5953d,fb_5953d,mgm_5953d,soxx_5953d
+ndays:30,60,90
+outlook:1,2,5
+plot_dpi:25
+fig_dim:2
+use_max:1
+normalized:1
