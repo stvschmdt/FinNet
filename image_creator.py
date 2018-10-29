@@ -50,6 +50,7 @@ class ImageCreator():
         self.fig_dim = int(config['fig_dim'][0]) #sets the figsize, figsize*dpi gives pixel dimensions
         self.plot_dpi = int(config['plot_dpi'][0]) #sets resolution of figure, figsize*dpi gives pixel dimensions
         self.percent_label_days = map(int,config['outlook'][0].split(','))
+        self.labels_only = bool(int(config['labels_only'][0]))
         self.filenames = config['symbols'][0].split(',')
 	self.ndays = map(int,config['ndays'][0].split(','))
         self.normalized = bool(int(config['normalized'][0]))
@@ -150,7 +151,7 @@ class ImageCreator():
         m_s = str(m)+'d'
         try:
             dir_len = len(os.listdir('./imgs_as_arrays/'+symbol+'/'+n_s+'/'+m_s+'/'))
-            if dir_len < self.get_num_windows(n = n,m = m,df = df):
+            if dir_len < self.get_num_windows(n = n,m = m,df = df) or self.labels_only:
                 write_dir = './imgs_as_arrays/'+symbol+'/'+n_s+'/'+m_s+'/'
             else:
                 write_dir = './imgs_as_arrays/'+symbol+'/'+n_s+'/'+m_s+'/'
@@ -371,11 +372,17 @@ class ImageCreator():
             raw_input("Recreated image")
         return img_arr
 
-    def sort_files(self,files):
+    def sort_files(self,files,use_max = None):
+        if use_max == None:
+            use_max = self.use_max
+        if use_max:
+            minmax = 'maxy'
+        else:
+            minmax = 'miny'
         nums = []
         img_arrs = []
         for f in files:
-            if 'yvals' not in f:
+            if minmax not in f:
                 img_arrs.append(f)
                 file_stem = f.split('.')[0]
                 nums.append(int(file_stem))
@@ -393,8 +400,14 @@ class ImageCreator():
         y = row[1]
         return x, y
 
-    def parse_recreate_directory(self, directory, n_day = '30d', d_out = '2d'):
+    def parse_recreate_directory(self, directory, n_day = '30d', d_out = '2d', use_max = None):
         #loop through directory to store all in np array tensor
+        if use_max == None:
+            use_max = self.use_max
+        if use_max:
+            minmax = 'maxy'
+        else:
+            minmax = 'miny'
         full_dir = directory + '/' + n_day + '/' + d_out + '/'
         files = os.listdir(full_dir)
         ###os.listdir does not read arrays in window order, so we must sort them
@@ -402,7 +415,7 @@ class ImageCreator():
         x_ = []
         y_ = []
         for f in files:
-            if 'yvals' not in f:
+            if minmax not in f:
                 row = self.recreate_image(full_dir + f)
                 x_.append(row)
             else:
@@ -412,9 +425,14 @@ class ImageCreator():
         y_ = np.array(y_)
         return x_, y_
 
-    def save_label(self,label_dir,labels):
-        print label_dir
-        np.save(label_dir+'yvals',labels)
+    def save_label(self,label_dir,labels,use_max = None):
+        if use_max == None:
+            use_max = self.use_max
+        if use_max:
+            minmax = 'maxy'
+        else:
+            minmax = 'miny'
+        np.save(label_dir+minmax,labels)
 
     def update_current_data(self,candle_stick,newlinedata,newlinecolor,newpatchdata,count,n = None):
         if n == None:
@@ -488,7 +506,6 @@ class ImageCreator():
             filepath = 'store/'+symbol+'.csv'
             for n in self.ndays:
                 for m in self.percent_label_days:
-                    print self.percent_label_days
                     self.log.info('running for symbol: {}'.format(filepath))
 	            self.log.info('running for days: {}'.format(n))
                     self.log.info('label days: {}'.format(m))
@@ -500,7 +517,7 @@ class ImageCreator():
 
                     write_dir = self.check_dir(filename=filepath,n = n, m = m, df = ohlc)
                     label_dir = write_dir
-                    if write_dir == None:
+                    if write_dir == None and not self.labels_only:
                         self.log.info('skipping directory...')
                         continue
                         
@@ -509,39 +526,42 @@ class ImageCreator():
                     arr_full = self.change_date(arr_full,0)
                     num_windows = self.get_num_windows(m = m, n = n, df = ohlc)
                     self.log.info('creating figure from full dataframe...')
-                    lines, patches = self.create_image_from_numpy_array(arr_full,num_windows,n = n)
-                    print len(lines)
-                    ### figure for windows of nday data
-                    self.log.info('creating first windowed figure...')
+                    if not self.labels_only:
+                        lines, patches = self.create_image_from_numpy_array(arr_full,num_windows,n = n)
+                        ### figure for windows of nday data
+                        self.log.info('creating first windowed figure...')
                     candle_stick,fig_windows,ax_windows,img_arr = self.create_figure_instance(arr_full,n = n)
                     img_arr = self.delete_alpha(img_arr)
                     shape, label = self.get_labels(arr_full[0:n],img_arr,df = ohlc)
                     labels = np.asarray([label])
-                    img_arr = self.flatten_image(img_arr)
-                    img_arr = self.append_shape(img_arr,shape)
-                    self.log.info('saving array...')
-                    write_file = self.save_array(write_dir,img_arr,0)
+                    if not self.labels_only:
+                        img_arr = self.flatten_image(img_arr)
+                        img_arr = self.append_shape(img_arr,shape)
+                        self.log.info('saving array...')
+                        write_file = self.save_array(write_dir,img_arr,0)
 
 
                     for i in range(1,num_windows):
                         self.log.info("window {} ".format(i))
                         arr = self.get_current_window(arr_full,i,n = n)
                         self.log.info('getting next plot data...')
-                        newlinedata, newlinecolor, newpatchdata = self.get_new_plot_data(lines,patches,i)
-                        self.log.info('updating line data...')
-                        candle_stick = self.update_current_data(candle_stick,newlinedata,newlinecolor,newpatchdata,i,n = n)
-                        self.log.info('redrawing image...')
-                        img_arr = self.redraw_image(candle_stick,fig_windows,ax_windows,i,arr,n = n)
+                        if not self.labels_only:
+                            newlinedata, newlinecolor, newpatchdata = self.get_new_plot_data(lines,patches,i)
+                            self.log.info('updating line data...')
+                            candle_stick = self.update_current_data(candle_stick,newlinedata,newlinecolor,newpatchdata,i,n = n)
+                            self.log.info('redrawing image...')
+                            img_arr = self.redraw_image(candle_stick,fig_windows,ax_windows,i,arr,n = n)
+                            img_arr = self.delete_alpha(img_arr)
 
-                        img_arr = self.delete_alpha(img_arr)
                         shape, label = self.get_labels(arr,img_arr,df = ohlc)
                         labels = np.append(labels,label)
-                        img_arr = self.flatten_image(img_arr)
-                        img_arr = self.append_shape(img_arr,shape)
-                        self.log.info("saving array...")
-                        write_file = self.save_array(write_dir,img_arr,i)
+                        if not self.labels_only:
+                            img_arr = self.flatten_image(img_arr)
+                            img_arr = self.append_shape(img_arr,shape)
+                            self.log.info("saving array...")
+                            #write_file = self.save_array(write_dir,img_arr,i)
                         #self.recreate_image(write_file,imshow = True)
-                    if label_dir == None:
+                    if label_dir == None and not self.labels_only:
                         pass
                     else:
                         self.log.info('saving yvals...')
